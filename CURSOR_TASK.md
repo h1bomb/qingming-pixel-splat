@@ -2,14 +2,14 @@
 
 ## 背景（先读完再动手）
 - README.md 是项目总览；docs/TECH.md 是技术拆解与待验证清单。
-- 现有两条线：`web/index.html`（动态版，Canvas 2D CPU 泼溅，零依赖单文件，已可跑）
+- 现有两条线：`web/index.html`（动态版，WebGL2 GPU 泼溅+2D 回退，零依赖单文件，约 12 万点，日/夜双主题，已可跑）
   和 `scenes/qingming-night.js`（Ink Studio 上游原生场景，CLI 可渲染 PNG）。
 - 上游仓库：https://github.com/siliconjungle/shapeshift-labs-ink-studio （MIT，Node ≥18，零运行时依赖）。
   本地调试原生版：`node <upstream>/cli/ink-studio.js render scenes/qingming-night.js --t 0 --out out/qingming.png`
 
 ## 目标（按优先级）
-1. **WebGL2 渲染器**：把动态版的泼溅绘制从 Canvas 2D 迁到 WebGL2（参考上游 docs/browser-renderer.md 与 webgl.mjs），
-   splat 数量从 ~1.3 万提到 ≥5 万，帧率 ≥50fps（M 芯片 Mac，640×360 逻辑分辨率）。
+1. ✅ **WebGL2 渲染器（v0.4 已完成）**：动态版已迁 WebGL2（GPU 点精灵+深度缓冲+低分 FBO Resolve），
+   splat 数量约 12 万；640×360 逻辑分辨率不变。后续只剩帧率实测与移动端点尺寸上限适配。
 2. **Selective Ink 描边**：用深度/法线边缘检测给轮廓、折角、材质边界加深色描边（上游 docs/edge-filter.md、docs/art-passes.md）。
 3. **像素稳定性**：镜头慢速环视时像素不闪烁——世界空间抖动 + 稳定采样（上游 docs/stable-dithering.md、docs/art-stability.md）。
 4. **消融对照模式**：同一场景一键切换 Splat / Mesh（three.js 或原生 WebGL）两条渲染路线，共用同一套 Pixel Resolve，

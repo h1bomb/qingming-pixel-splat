@@ -11,7 +11,7 @@
 
 | 版本 | 文件 | 怎么跑 | 状态 |
 |---|---|---|---|
-| 动态版（主交付） | `web/index.html` | 浏览器直接打开，零依赖单文件 | ✅ 已实测：约 3.9 万 splats，26 秒循环，放桅收帆过桥/雾/倒影/桥上人群/拖动环视/像素化开关 |
+| 动态版（主交付） | `web/index.html` | 浏览器直接打开，零依赖单文件 | ✅ 已实测：约 12 万 splats（WebGL2 GPU 点精灵+深度缓冲），26 秒循环，放桅过桥/雾/倒影/桥上人群/拖动环视/像素化开关，日景·夜景双主题（夜景月亮为球体法线着色） |
 | Ink Studio 原生版 | `scenes/qingming-night.js` | 用上游 CLI 渲染 PNG | ✅ 已实测出图 `out/qingming.png`（900×620），关键帧：船在桥右、帆半收 |
 
 上游项目：[siliconjungle/shapeshift-labs-ink-studio](https://github.com/siliconjungle/shapeshift-labs-ink-studio)（MIT，2026-11-16 建仓）
@@ -57,7 +57,7 @@ out/                       实测产出（原生 PNG + 动态版三帧截图）
 
 ## 已知短板（别当成已解决）
 
-- 动态版是 Canvas 2D CPU 排序泼溅，不是 WebGL2；3.9 万点是 CPU 排序下的取舍，上游原生管线可达数万点。
+- 动态版已迁 WebGL2（GPU 点精灵+深度缓冲，640×360 低分渲染后调色板量化 Resolve 放大），约 12 万点；WebGL2 不可用时自动回退 Canvas 2D 画家算法。构图为近景：虹桥横贯画面、船在前景过桥洞，向 Silicon Jungle 工具链上社区作品（如 @c02680900 的河畔咖啡馆）的精致度看齐——小场景、高密度、逐点色抖动质感、日夜双主题。
 - 动态版没有做深度轮廓描边（Selective Ink）和像素稳定性处理，镜头拖动时会有轻微闪烁——这是 CURSOR_TASK 里的第一优先级。
 - 同场景 Mesh / Ray Marching / Splat 三路线的画质-性能消融对照还没做，结论别写死（见 docs/TECH.md）。
 

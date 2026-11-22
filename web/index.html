@@ -34,14 +34,15 @@
   <div class="bar">
     <button id="btnPlay" class="on">暂停</button>
     <button id="btnPixel" class="on">像素化 Resolve：开</button>
-    <button id="btnFog" class="on">雾气：开</button>
+    <button id="btnFog">雾气：关</button>
     <button id="btnRefl" class="on">水面倒影：开</button>
+    <button id="btnTheme">夜景：关</button>
     <input type="range" id="scrub" min="0" max="1000" value="0">
     <span id="clock" style="font-size:12px;color:#8fa3b8"></span>
   </div>
   <p class="note">
     管线说明：场景不用三角面片建模，全部形状由解析曲面（盒、椭球、圆柱、拱环、平面）做表面采样生成高斯点（约 1.2 万个），
-    每帧按深度排序投影成椭圆泼溅，再在 640×360 逻辑分辨率上做色板量化 + 抖动 + 最近邻放大。
+    WebGL2 点精灵泼溅（深度缓冲免排序）渲染到 640×360，再做色板量化 + 抖动 + 最近邻放大；月亮是带法线明暗的真球体。
     关掉「像素化 Resolve」可以看到泼溅原始的柔和样子——像素味来自最后这一层，不是原图滤镜。
     同一场景的 Ink Studio 原生版本在 <code>scenes/qingming-night.js</code>，可用上游 CLI 渲染成 PNG。
   </p>
@@ -50,9 +51,10 @@
 "use strict";
 /* ============ 1. SDF-style surface sampling -> splats ============ */
 const S = []; // static splats: x,y,z,nx,ny,nz,r,g,b,size,em,kind
-function push(x,y,z,nx,ny,nz,c,size,em,kind){ const l=Math.hypot(nx,ny,nz)||1;
-  S.push({x,y,z,nx:nx/l,ny:ny/l,nz:nz/l,r:c[0],g:c[1],b:c[2],size:size||0.34,em:em||0,kind:kind||0}); }
-const DENS=0.68;
+function jitf(x,y,z){ const h=Math.sin(x*12.9898+y*78.233+z*37.719)*43758.5453; return 0.93+(h-Math.floor(h))*0.14; }
+function push(x,y,z,nx,ny,nz,c,size,em,kind){ const l=Math.hypot(nx,ny,nz)||1; const f=em?1:jitf(x,y,z);
+  S.push({x,y,z,nx:nx/l,ny:ny/l,nz:nz/l,r:Math.min(255,c[0]*f),g:Math.min(255,c[1]*f),b:Math.min(255,c[2]*f),size:size||0.34,em:em||0,kind:kind||0}); }
+const DENS=0.58;
 function box(cx,cy,cz,hx,hy,hz,c,step,em){
   step=(step||0.34)*DENS;
   const faces=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
@@ -94,101 +96,178 @@ function disc(cx,cy,cz,r,c,em){ const n=Math.ceil(Math.PI*r*r/0.009);
   for(let i=0;i<n;i++){ const a=i*2.399963, d=r*Math.sqrt((i+0.5)/n);
     push(cx+Math.cos(a)*d, cy+Math.sin(a)*d, cz, 0,0,1, c, 0.25, em); } }
 
-/* palette (night) */
-const C = {
+/* palette: two art-directed themes (cafe-style day / night pair) */
+const C_DAY = {
+  stone:[156,144,124], stoneD:[110,100,86], wood:[124,88,56], woodD:[86,60,40], deck:[164,122,76],
+  roof:[104,118,134], roofD:[74,88,106], water:[62,128,148], waterD:[40,98,118], glint:[150,205,208],
+  bank:[126,116,96], grass:[104,146,84], plaster:[233,223,201], win:[170,192,206], lamp:[255,196,92], lampR:[216,84,50], warm:[255,226,150],
+  sun:[255,246,205], sail:[203,184,146], sailL:[233,215,180], leaf:[92,146,78], leafD:[60,106,58], leafL:[128,176,92],
+  hull:[96,66,42], white:[238,234,220], red:[190,62,42], redD:[140,42,30], redL:[218,96,64], mat:[180,150,100], matD:[138,110,70], rope:[192,168,124], clothB:[96,110,128], clothG:[110,104,88],
+  skyLow:[190,216,234], skyHigh:[138,178,214], cloud:[247,250,252], far:[128,152,172],
+  cloths:[[96,110,128],[110,104,88],[128,96,74],[84,110,102],[120,110,140],[150,128,96],[100,90,120],[140,100,84]]
+};
+const C_NIGHT = {
   stone:[107,127,146], stoneD:[58,72,94], wood:[93,66,48], woodD:[58,42,32], deck:[138,101,68],
   roof:[51,70,94], roofD:[31,44,61], water:[23,56,77], waterD:[14,34,51], glint:[46,95,116],
-  bank:[38,54,84], lamp:[255,184,77], lampR:[217,108,44], warm:[255,233,176],
-  moon:[247,243,218], sail:[179,161,132], sailL:[216,201,168], leaf:[46,82,56], leafD:[28,51,40],
-  hull:[70,50,36], white:[232,228,200], red:[168,54,40], redD:[118,35,27], redL:[199,86,59], mat:[168,138,94], matD:[126,100,64], rope:[188,164,120], clothB:[96,110,128], clothG:[110,104,88]
+  bank:[38,54,84], grass:[34,58,48], plaster:[118,108,94], win:[255,233,176], lamp:[255,184,77], lampR:[217,108,44], warm:[255,233,176],
+  sun:[247,243,218], sail:[179,161,132], sailL:[216,201,168], leaf:[46,82,56], leafD:[28,51,40], leafL:[36,66,44],
+  hull:[70,50,36], white:[232,228,200], red:[168,54,40], redD:[118,35,27], redL:[199,86,59], mat:[168,138,94], matD:[126,100,64], rope:[188,164,120], clothB:[96,110,128], clothG:[110,104,88],
+  skyLow:[18,26,50], skyHigh:[8,12,30], cloud:[42,54,82], far:[36,48,70],
+  cloths:[[80,92,110],[92,88,76],[104,80,64],[70,92,86],[98,90,116],[120,102,78],[84,76,100],[112,84,70]]
 };
+let C = C_DAY, THEME = 'day';
+let LIGHTV = (()=>{ const l=[-0.5,0.82,0.3], m=Math.hypot(...l); return [l[0]/m,l[1]/m,l[2]/m]; })();
+const SKIN=[233,197,160], HAIR=[40,34,30];
+const deckY = z => 0.16 + Math.sqrt(Math.max(0.2, 4.72*4.72 - z*z));
 
-/* water plane (kind=1: shimmer) */
-for(let x=-12;x<12;x+=0.42) for(let z=-2.3;z<2.3;z+=0.42)
-  push(x,0,z, 0,1,0, (Math.sin(x*1.7+z*3.1)>0.86?C.glint:C.water), 0.46, 0, 1);
-/* banks */
-box(0,0.02,4.9, 12,0.28,2.1, C.bank, 0.4);
-box(0,0.25,-4.6, 12,0.5,2.4, C.bank, 0.4);
-/* Hong Bridge: red wooden arch across Z, tunnel along X (per the reference:
-   cinnabar lacquered timber arch ribs, railed deck crowded with onlookers, stone abutments) */
-(function(){
-  const R=2.9;
-  const deckY=z=>{ const th=Math.acos(Math.max(-1,Math.min(1,z/(R+0.42)))); return 0.1+Math.sin(th)*(R+0.42); };
-  // stone abutments only at the two ends
-  for(const sd of [-1,1]){ box(0,0.55,sd*3.35, 1.5,0.85,0.75, C.stoneD, 0.36); box(0,1.15,sd*2.95, 1.45,0.28,0.5, C.stone, 0.34); }
-  // five parallel timber arch ribs under the deck
-  for(const rx of [-1.16,-0.58,0,0.58,1.16])
-    for(let i=0;i<=16;i++){ const th=i/16*Math.PI, z=Math.cos(th)*R, y=0.02+Math.sin(th)*R;
-      box(rx,y,z, 0.10,0.17,0.32, i%2?C.redD:C.red, 0.2); }
-  // two main arch chords at the faces
-  for(const fx of [-1.32,1.32])
-    for(let i=0;i<=16;i++){ const th=i/16*Math.PI, z=Math.cos(th)*(R+0.1), y=0.06+Math.sin(th)*(R+0.1);
-      box(fx,y,z, 0.09,0.24,0.34, C.red, 0.2); }
-  // deck planks + red fascia
-  for(let i=0;i<=12;i++){ const th=i/12*Math.PI, z=Math.cos(th)*(R+0.42), y=0.1+Math.sin(th)*(R+0.42);
-    box(0,y,z, 1.34,0.09,0.34, C.deck, 0.28);
-    for(const fx of [-1.36,1.36]) box(fx,y-0.06,z, 0.05,0.2,0.34, C.red, 0.2); }
-  // railings: posts + two rails following the arc, both faces
-  for(const fx of [-1.3,1.3]){
+function figure(x, y, z, cloth, lean){
+  const tro=[64,60,68];
+  for(let i=0;i<5;i++) push(x+(Math.random()-0.5)*0.05, y+0.14+(i%2)*0.13, z+(Math.random()-0.5)*0.05, 0,1,0, tro, 0.17, 0);
+  for(let i=0;i<8;i++) push(x+lean*0.05+(Math.random()-0.5)*0.05, y+0.42+(i%3)*0.13, z+(Math.random()-0.5)*0.05, 0,1,0, cloth, 0.19, 0);
+  push(x+lean*0.1, y+0.66, z, 0,1,0, cloth, 0.15, 0);
+  if(lean) tube(x+lean*0.08, y+0.6, z, x+lean*0.3, y+0.48, z, 0.032, cloth, 0.08);
+  for(let i=0;i<4;i++) push(x+lean*0.13, y+0.82+(i%2)*0.05, z, 0,1,0, SKIN, 0.14, 0);
+  push(x+lean*0.13-0.03, y+0.94, z, 0,1,0, HAIR, 0.12, 0);
+  push(x+lean*0.13-0.03, y+1.03, z, 0,1,0, HAIR, 0.08, 0);
+}
+function tree(x, z, s){
+  tube(x, 0.3, z, x+0.15*s, 1.5*s, z, 0.09*s, C.woodD, 0.16);
+  ellipsoid(x+0.2*s, 2.0*s, z, 1.05*s, 0.8*s, 1.0*s, C.leaf, 240, 0);
+  ellipsoid(x-0.5*s, 1.7*s, z+0.2, 0.7*s, 0.55*s, 0.65*s, C.leafD, 150, 0);
+}
+function house(x, z, hw, hd, hh){
+  box(x, 0.45+hh/2, z, hw, hh/2, hd, C.plaster, 0.3);
+  for(const sx of [-1,1]) for(const sz of [-1,1])
+    box(x+sx*(hw-0.04), 0.45+hh/2, z+sz*(hd-0.04), 0.05, hh/2, 0.05, C.woodD, 0.16);
+  box(x, 0.5, z+hd+0.01, hw, 0.05, 0.02, C.woodD, 0.2);
+  plane(x-hw*0.45, 1.2, z+hd+0.02, 0.22, 0.3, C.win, 0.1, THEME==='night'?1:0);
+  plane(x+hw*0.45, 1.2, z+hd+0.02, 0.22, 0.3, C.win, 0.1, THEME==='night'?1:0);
+  for(let i=0;i<4;i++){ const rr=1-i*0.2;
+    box(x, hh+0.62+i*0.17, z, hw*rr+0.28, 0.085, hd*rr+0.28, i%2?C.roof:C.roofD, 0.24); }
+  tube(x-hw*0.55, hh+1.32, z, x+hw*0.55, hh+1.32, z, 0.06, C.roofD, 0.2);
+}
+
+function buildEnv(){
+  /* sky backdrop bands + clouds + sun/moon (true sphere, kind=5) */
+  const skyStart=S.length;
+  for(let i=0;i<12;i++){
+    const f=i/11, col=C.skyLow.map((v,k)=>Math.round(v+(C.skyHigh[k]-v)*f));
+    plane(0, 0.55+i*0.98, -15.5, 21, 0.5, col, 1.05, 0);
+  }
+  for(let i=skyStart;i<S.length;i++) S[i].size*=1.7;   // backdrop discs must overlap: no halftone dots
+  const cloudStart=S.length;
+  for(const [cx,cy,cs] of [[-6,8.6,1],[2.5,9.3,1.3],[-11,9.6,0.8],[10.5,8.2,0.9]]){
+    ellipsoid(cx, cy, -13.5, 2.3*cs, 0.5*cs, 0.7*cs, C.cloud, 130, 0);
+    ellipsoid(cx+1.6*cs, cy-0.15, -13.5, 1.4*cs, 0.4*cs, 0.6*cs, C.cloud, 90, 0);
+  }
+  for(let i=cloudStart;i<S.length;i++) S[i].size*=2.1;
+  const sunStart=S.length;
+  (function(){
+    const cx=THEME==='day'?8.6:-7.8, cy=THEME==='day'?8.8:7.6, cz=-12.8, r=THEME==='day'?0.9:1.05, n=650;
+    for(let i=0;i<n;i++){ const y=1-(i/(n-1))*2, rad=Math.sqrt(Math.max(0,1-y*y)), th=2.399963*i;
+      push(cx+Math.cos(th)*rad*r, cy+y*r, cz+Math.sin(th)*rad*r, Math.cos(th)*rad, y, Math.sin(th)*rad, C.sun, 0.3, 1); }
+  })();
+  for(let i=sunStart;i<S.length;i++){ S[i].kind=5; S[i].size*=1.5; }
+  /* far shore silhouette + pagoda, seen through the arch */
+  for(let x=-13;x<13;x+=1.7){ const h=0.8+((Math.sin(x*3.7)*0.5+0.5)*1.1);
+    box(x, 0.4+h/2, -7.4, 0.85, h/2, 0.5, C.far, 0.5, 0); }
+  for(let i=0;i<3;i++) box(8.2, 1.1+i*0.85, -7.4, 0.95-i*0.22, 0.4, 0.7, C.far, 0.3, 0);
+  /* water (kind=1) */
+  box(0, -0.78, 0.2, 10.6, 0.78, 6.4, C.stoneD, 0.5);
+  for(let x=-10.5;x<10.5;x+=0.4) for(let z=-4.3;z<4.3;z+=0.4)
+    push(x, 0, z, 0,1,0, (Math.sin(x*1.7+z*3.1)>0.86?C.glint:C.water), 0.44, 0, 1);
+  /* banks + stone embankment face + grass lip */
+  box(0, 0.05, 5.6, 10.5, 0.3, 1.35, C.bank, 0.38);
+  box(0, 0.22, -5.9, 10.5, 0.5, 1.6, C.bank, 0.38);
+  box(0, 0.02, 4.42, 10.5, 0.34, 0.12, C.stone, 0.3);
+  box(0, 0.38, 6.6, 10.5, 0.05, 0.4, C.grass, 0.4);
+  box(0, 0.52, -6.9, 10.5, 0.05, 0.5, C.grass, 0.4);
+}
+
+function buildBridge(){
+  const R=4.3, DR=4.72, night=THEME==='night';
+  for(const sd of [-1,1]){
+    box(0, 0.35, sd*5.35, 1.8, 0.5, 0.85, C.stone, 0.3);
+    box(0, 0.75, sd*4.95, 1.7, 0.35, 0.55, C.stone, 0.3);
+    box(0, 1.0, sd*4.7, 1.6, 0.22, 0.35, C.stoneD, 0.28);
+  }
+  for(const rx of [-1.5,-1.0,-0.5,0,0.5,1.0,1.5])
+    for(let i=0;i<=22;i++){ const th=i/22*Math.PI, z=Math.cos(th)*R, y=0.02+Math.sin(th)*R;
+      box(rx, y, z, 0.11, 0.2, 0.42, i%2?C.redD:C.red, 0.19); }
+  for(const fx of [-1.66,1.66]){
+    for(let i=0;i<=22;i++){ const th=i/22*Math.PI, z=Math.cos(th)*(R+0.12), y=0.08+Math.sin(th)*(R+0.12);
+      box(fx, y, z, 0.09, 0.26, 0.44, C.red, 0.19); }
+    for(let i=0;i<=22;i++){ const th=i/22*Math.PI, z=Math.cos(th)*(R-0.62), y=-0.02+Math.sin(th)*(R-0.62);
+      box(fx, y, z, 0.08, 0.18, 0.4, C.redD, 0.19); }
+    for(let i=3;i<22;i+=4){ const th=i/22*Math.PI, z=Math.cos(th)*DR;
+      const yTop=0.1+Math.sin(th)*DR, yBot=0.02+Math.sin(th)*R;
+      box(fx, (yTop+yBot)/2, z, 0.06, Math.max(0.06,(yTop-yBot)/2), 0.06, C.redD, 0.12); }
+  }
+  for(let i=0;i<=18;i++){ const th=i/18*Math.PI, z=Math.cos(th)*DR, y=0.1+Math.sin(th)*DR;
+    box(0, y, z, 1.58, 0.09, 0.42, C.deck, 0.24);
+    for(const fx of [-1.62,1.62]) box(fx, y-0.05, z, 0.05, 0.18, 0.42, C.red, 0.19); }
+  for(const fx of [-1.56,1.56]){
     let prev=null;
-    for(let i=0;i<=12;i++){ const th=i/12*Math.PI, z=Math.cos(th)*(R+0.42), y=0.1+Math.sin(th)*(R+0.42)+0.1;
-      box(fx,y+0.26,z, 0.055,0.3,0.055, C.redD, 0.14);
-      if(prev) for(const h of [0.34,0.55]){
-        const mz=(prev.z+z)/2, my=(prev.y+y)/2;
-        box(fx,my+h,mz, 0.045,0.05,Math.abs(z-prev.z)/2+0.05, C.red, 0.14); }
+    for(let i=0;i<=18;i++){ const th=i/18*Math.PI, z=Math.cos(th)*DR, y=0.1+Math.sin(th)*DR+0.06;
+      box(fx, y+0.24, z, 0.055, 0.28, 0.055, C.redD, 0.12);
+      if(prev) for(const h of [0.32,0.52]){ const mz=(prev.z+z)/2, my=(prev.y+y)/2;
+        box(fx, my+h, mz, 0.045, 0.05, Math.abs(z-prev.z)/2+0.04, C.red, 0.12); }
       prev={y,z};
-      if(i===2||i===10) ellipsoid(fx,y+0.78,z, 0.13,0.16,0.13, C.lampR, 22, 1);
+      if(i===3||i===15) ellipsoid(fx, y+0.72, z, 0.12, 0.15, 0.12, C.lampR, 20, night?1:0);
     }
   }
-  // crowd on the deck: onlookers leaning on the rails, watching the boat
-  const crowdCols=[C.clothB,C.clothG,C.mat,C.sail,C.roof,C.clothB,C.matD,C.clothG];
-  function figure(x,z,ci,lean){
-    const y=deckY(z)+0.12, c=crowdCols[ci%crowdCols.length];
-    for(let i=0;i<7;i++) push(x+(Math.random()-0.5)*0.05, y+0.12+ (i%3)*0.15, z+(Math.random()-0.5)*0.05, 0,1,0, c, 0.19);
-    push(x+lean*0.1, y+0.62, z, 0,1,0, C.white, 0.15);
-    push(x+lean*0.16, y+0.55, z, lean,0,1, c, 0.13);
-  }
-  const spots=[[-0.95,-2.5],[0.95,-2.2],[-0.95,-1.7],[0.9,-1.2],[-0.9,-0.6],[0.95,-0.1],[-0.95,0.5],[0.9,1.0],[-0.9,1.6],[0.95,2.1],[-0.95,2.6],[0.2,-2.9],[-0.3,2.95],[0.5,0.4]];
-  spots.forEach((sp,i)=>figure(sp[0],sp[1],i, sp[0]>0?1:-1));
-})();
-/* houses */
-function house(x,z,w,h,d){
-  box(x,0.75+h/2,z, w/2,h/2,d/2, C.wood, 0.3);
-  for(let i=0;i<3;i++) box(x,0.75+h+0.16+i*0.22,z, w/2+0.35-i*0.28,0.11,d/2+0.35-i*0.26, i?C.roof:C.roofD, 0.34);
-  plane(x-w*0.22,0.75+h*0.55,z+d/2+0.04, 0.16,0.22, C.warm, 0.12, 1);
-  ellipsoid(x+w/2+0.15,0.75+h+0.55,z, 0.13,0.15,0.13, C.lampR, 22, 1);
+  const spots=[[-1.05,-4.1,1],[1.05,-3.8,-1],[-1.05,-3.3,1],[1.05,-2.9,-1],[-1.05,-2.4,1],[1.05,-2.0,-1],
+    [-1.05,-1.5,1],[1.05,-1.1,-1],[-1.05,-0.6,1],[1.05,-0.2,-1],[-0.4,0.2,0],[1.05,0.5,-1],[-1.05,1.0,1],
+    [1.05,1.5,-1],[-1.05,1.9,1],[1.05,2.4,-1],[-1.05,2.9,1],[1.05,3.3,-1],[-1.05,3.8,1],[1.05,4.15,-1],
+    [0.3,-3.5,0],[-0.3,3.6,0],[0.45,0.9,0],[-0.45,-1.9,0]];
+  spots.forEach((sp,i)=>figure(sp[0], deckY(sp[1]), sp[1], C.cloths[i%C.cloths.length], sp[2]));
 }
-house(-7.6,-4.4,3.0,1.9,1.8); house(-4.4,-4.9,2.4,1.5,1.6); house(5.2,-4.7,2.8,1.7,1.7); house(8.3,-4.3,3.2,2.1,1.9);
-/* tea stall, front bank */
-box(7.8,0.95,4.3, 1.1,0.45,0.8, C.wood, 0.34); box(7.8,1.85,4.3, 1.35,0.10,1.0, C.roof, 0.34);
-ellipsoid(7.8,1.45,4.3, 0.15,0.17,0.15, C.lampR, 24, 1);
-/* trees */
-function tree(x,z,s){ tube(x,0.7,z, x+0.15*s,0.7+1.1*s,z, 0.09*s, C.woodD, 0.2);
-  ellipsoid(x+0.2*s,0.7+1.55*s,z, 0.85*s,0.62*s,0.8*s, C.leaf, 130);
-  ellipsoid(x-0.45*s,0.7+1.25*s,z+0.2, 0.55*s,0.42*s,0.5*s, C.leafD, 80); }
-tree(-9.8,-3.6,1.15); tree(3.4,-3.9,0.95); tree(-6.2,4.6,1.0); tree(10.2,4.4,1.2);
-/* moon */
-const moonStart=S.length; disc(-7.8,7.6,-7.5, 1.05, C.moon, 1); for(let i=moonStart;i<S.length;i++) S[i].kind=5;
-/* bridge pedestrians (kind=2, positions recomputed per-frame along the arc) */
-const WALKERS=[{u:0.15,dir:1,sp:0.021,c:C.lampR},{u:0.62,dir:-1,sp:0.016,c:C.sailL},{u:0.4,dir:1,sp:0.013,c:C.glint}];
+
+function buildHouses(){
+  house(-8.6,-6.2, 1.7,1.2, 1.5); house(-5.4,-6.6, 1.3,1.0, 1.1);
+  house(6.4,-6.4, 1.5,1.1, 1.3); house(9.7,-6.0, 1.2,0.95, 1.0);
+  house(9.9, 5.5, 1.1,0.9, 0.9);
+  tree(10.4,-4.9, 1.0); tree(-10.3,-5.2, 1.15); tree(10.2, 4.8, 0.85); tree(-3.4,-6.9, 0.8);
+  /* tea stall, front-left bank: striped awning, counter, banner, lantern */
+  const sx=-7.4, sz=5.15, night=THEME==='night';
+  for(const px of [-0.85,0.85]) for(const pz of [-0.45,0.45])
+    tube(sx+px, 0.35, sz+pz, sx+px, 1.6, sz+pz, 0.04, C.woodD, 0.14);
+  for(let i=0;i<7;i++) box(sx-0.9+i*0.3, 1.66, sz, 0.15, 0.04, 0.62, i%2?C.sailL:C.mat, 0.13);
+  box(sx, 0.72, sz+0.15, 0.9, 0.38, 0.35, C.wood, 0.2);
+  box(sx-0.3, 1.0, sz+0.15, 0.25, 0.1, 0.25, C.mat, 0.12);
+  plane(sx-0.95, 1.05, sz+0.5, 0.24, 0.34, C.white, 0.09, 0);
+  box(sx-0.95, 1.12, sz+0.53, 0.13, 0.03, 0.01, C.redD, 0.05);
+  box(sx-0.95, 0.98, sz+0.53, 0.03, 0.12, 0.01, C.redD, 0.05);
+  ellipsoid(sx+0.95, 1.3, sz+0.4, 0.11, 0.13, 0.11, C.lampR, 18, night?1:0);
+  figure(sx+0.45, 0.35, sz-0.55, C.cloths[3], 0);
+  figure(sx-0.5, 0.35, sz+0.85, C.cloths[5], 0);
+  /* willow, front-left: trunk, canopy, hanging strands into the top of frame */
+  tube(-10.6, 0.3, 4.7, -10.3, 2.4, 4.7, 0.14, C.woodD, 0.18);
+  ellipsoid(-10.2, 2.9, 4.7, 1.5, 0.7, 1.2, C.leaf, 260, 0);
+  ellipsoid(-11.2, 2.6, 4.9, 0.9, 0.55, 0.8, C.leafD, 160, 0);
+  for(let i=0;i<13;i++){
+    const x0=-11.9+i*0.28, top=2.75+((i*37)%10)*0.05, len=1.3+((i*53)%10)*0.12;
+    tube(x0, top, 4.75+((i%3)-1)*0.15, x0+0.1, top-len, 4.75+((i%3)-1)*0.15, 0.028, i%2?C.leafL:C.leaf, 0.13);
+  }
+}
+
+/* bridge pedestrians (positions recomputed per-frame along the arc) */
+const WALKERS=[{u:0.15,dir:1,sp:0.021,x:-0.95,c:[150,90,70]},{u:0.62,dir:-1,sp:0.016,x:0.95,c:[90,104,128]},{u:0.4,dir:1,sp:0.013,x:-0.95,c:[110,104,88]}];
 function walkerSplats(w){
-  const th=w.u*Math.PI, R=3.32, z=Math.cos(th)*R, y=0.1+Math.sin(th)*R+0.55, out=[];
-  const mk=(x,y2,z2,nx,ny,nz,c,size,em)=>out.push({x,y:y2,z:z2,nx,ny,nz,r:c[0],g:c[1],b:c[2],size,em:em||0,kind:0});
-  for(let i=0;i<10;i++){ const a=i*2.4, yy=(i%3)*0.16;
-    mk(0.0*Math.cos(a), y-0.28+yy, z+0.0*Math.sin(a), 0,1,0, w.c, 0.17); }
-  mk(0,y+0.12,z, 0,1,0, C.white, 0.15);
-  mk(0.14,y+0.3,z, 0,0,1, C.lamp, 0.13, 1);
+  const th=w.u*Math.PI, Rw=4.72, z=Math.cos(th)*Rw, y=0.1+Math.sin(th)*Rw+0.16, out=[];
+  const mk=(x,y2,z2,c,size,em)=>out.push({x, y:y2, z:z2, nx:0, ny:1, nz:0, r:c[0], g:c[1], b:c[2], size, em:em||0, kind:0, seed:(x*13+z*7)|0});
+  for(let i=0;i<8;i++) mk(w.x, y+0.1+(i%3)*0.14, z, w.c, 0.19);
+  mk(w.x, y+0.62, z, SKIN, 0.16);
+  mk(w.x, y+0.73, z, HAIR, 0.13);
   return out;
 }
 
 /* ============ 2. boat (dynamic group) ============
-   Per the reference: the mast is not just sail-furled, it is LOWERED (放倒桅杆) —
-   mast + yard + sail rotate forward around the mast step as the bridge nears;
-   the sail furls onto the mast, a spare bundle lies on the cabin roof.
-   kind: 0 static-in-boat, 3 sail (furls), 6 mast group (rotates), 7 furled bundle (swells as sail furls) */
+   The mast is LOWERED AFT (toward the stern) to pass the arch, sail furled onto it.
+   kind: 0 static-in-boat, 3 sail (furls), 6 mast group (rotates), 7 furled bundle (swells) */
 const BOAT=[];
-function bpush(x,y,z,nx,ny,nz,c,size,em,kind){ const l=Math.hypot(nx,ny,nz)||1;
-  BOAT.push({x,y,z,nx:nx/l,ny:ny/l,nz:nz/l,r:c[0],g:c[1],b:c[2],size:size||0.3,em:em||0,kind:kind||0}); }
+function bpush(x,y,z,nx,ny,nz,c,size,em,kind){ const l=Math.hypot(nx,ny,nz)||1; const f=em?1:jitf(x,y,z);
+  BOAT.push({x,y,z,nx:nx/l,ny:ny/l,nz:nz/l,r:Math.min(255,c[0]*f),g:Math.min(255,c[1]*f),b:Math.min(255,c[2]*f),size:size||0.3,em:em||0,kind:kind||0}); }
 function btube(x1,y1,z1,x2,y2,z2,r,c,step,kind){ step=step*DENS;
   const dx=x2-x1,dy=y2-y1,dz=z2-z1,len=Math.hypot(dx,dy,dz),ux=dx/len,uy=dy/len,uz=dz/len;
   let px=-uz,pz=ux; const pl=Math.hypot(px,pz)||1; px/=pl; pz/=pl;
@@ -196,10 +275,9 @@ function btube(x1,y1,z1,x2,y2,z2,r,c,step,kind){ step=step*DENS;
   const rings=Math.max(2,Math.ceil(len/step)), around=Math.max(5,Math.ceil(2*Math.PI*r/step));
   for(let i=0;i<=rings;i++){ const t=i/rings;
     for(let j=0;j<around;j++){ const a=j/around*Math.PI*2, ca=Math.cos(a)*r, sa=Math.sin(a)*r;
-      bpush(x1+dx*t+px*ca+qx*sa, y1+dy*t+ (qy*sa), z1+dz*t+pz*ca+qz*sa, px*Math.cos(a)+qx*Math.sin(a), qy*Math.sin(a), pz*Math.cos(a)+qz*Math.sin(a), c, step*1.2, 0, kind); } }
+      bpush(x1+dx*t+px*ca+qx*sa, y1+dy*t+qy*sa, z1+dz*t+pz*ca+qz*sa, px*Math.cos(a)+qx*Math.sin(a), qy*Math.sin(a), pz*Math.cos(a)+qz*Math.sin(a), c, step*1.2, 0, kind); } }
 }
-function bellipsoid(cx,cy,cz,rx,ry,rz,c,n,kind){
-  n=Math.ceil(n*1.9);
+function bellipsoid(cx,cy,cz,rx,ry,rz,c,n,kind){ n=Math.ceil(n*1.9);
   for(let i=0;i<n;i++){ const y=1-(i/(n-1))*2, rad=Math.sqrt(Math.max(0,1-y*y)), th=2.399963*i;
     bpush(cx+Math.cos(th)*rad*rx, cy+y*ry, cz+Math.sin(th)*rad*rz, Math.cos(th)/rx, y/ry, Math.sin(th)/rz, c, 0.23, 0, kind); }
 }
@@ -208,7 +286,13 @@ function bplane(cx,cy,cz,hx,hy,c,step,em){ step=step*DENS;
   for(let i=0;i<n1;i++)for(let j=0;j<n2;j++)
     bpush(cx-hx+(i+0.5)/n1*2*hx, cy-hy+(j+0.5)/n2*2*hy, cz, 0,0,1, c, step*1.25, em, 0);
 }
-(function buildBoat(){
+function bring(cx,cy,cz,r,c,step,kind){
+  const n=Math.max(6,Math.ceil(2*Math.PI*r/step));
+  for(let i=0;i<n;i++){ const a=i/n*Math.PI*2;
+    bpush(cx+Math.cos(a)*r, cy, cz+Math.sin(a)*r, Math.cos(a), 0, Math.sin(a), c, step*1.2, 0, kind); }
+}
+function buildBoat(){
+  const night=THEME==='night';
   const bx=(cx,cy,cz,hx,hy,hz,c,st)=>{ st=st*DENS; for(const f of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){
     const t1=f[0]!==0?[0,1,0]:[1,0,0], t2=f[0]!==0?[0,0,1]:(f[1]!==0?[0,0,1]:[0,1,0]);
     const e1=[hx*t1[0],hy*t1[1],hz*t1[2]], e2=[hx*t2[0],hy*t2[1],hz*t2[2]];
@@ -219,181 +303,355 @@ function bplane(cx,cy,cz,hx,hy,c,step,em){ step=step*DENS;
   for(let i=0;i<1050;i++){ const y=1-(i/1049)*2, rad=Math.sqrt(Math.max(0,1-y*y)), th=2.399963*i;
     if(y>0.55) continue;
     bpush(Math.cos(th)*rad*2.3, 0.28+y*0.5, Math.sin(th)*rad*0.72, Math.cos(th)/2.3,y/0.5,Math.sin(th)/0.72, C.hull, 0.23); }
-  for(const sz of [-1,1]){ bx(0,0.44,sz*0.71, 1.8,0.045,0.02, C.woodD, 0.3); bx(0,0.2,sz*0.68, 1.7,0.045,0.02, C.woodD, 0.3); }
+  for(const sz of [-1,1]){ bx(0,0.46,sz*0.71, 1.8,0.04,0.02, C.woodD, 0.3); bx(0,0.3,sz*0.7, 1.75,0.04,0.02, C.wood, 0.3); bx(0,0.14,sz*0.66, 1.65,0.04,0.02, C.woodD, 0.3); }
   bx(2.28,0.6,0, 0.26,0.15,0.48, C.hull, 0.26); bx(2.52,0.78,0, 0.15,0.12,0.36, C.hull, 0.24);
   bx(-2.28,0.6,0, 0.26,0.15,0.48, C.hull, 0.26); bx(-2.52,0.8,0, 0.15,0.12,0.36, C.hull, 0.24);
   bx(0,0.62,0, 1.9,0.10,0.6, C.deck, 0.3);
-  // big woven-mat cabin: mat siding, dark frame, lattice window + door on the camera side, mat roof
+  // woven-mat cabin: lattice window (lit cells + frame), reed blind stripes, mat roof
   bx(-0.85,1.12,0, 0.78,0.52,0.56, C.mat, 0.26);
   bx(-0.85,1.68,0, 0.95,0.09,0.7, C.matD, 0.3);
   btube(-1.72,1.8,0, 0.02,1.8,0, 0.05, C.woodD, 0.2, 0);
-  bplane(-1.18,1.18,0.575, 0.2,0.26, C.warm, 0.1, 0);
-  bplane(-0.42,1.16,0.575, 0.15,0.28, C.matD, 0.1, 0);
+  bplane(-1.18,1.18,0.575, 0.21,0.27, C.matD, 0.09, 0);
+  for(const dxc of [-0.1,0.1]) for(const dyc of [-0.12,0.02,0.16])
+    bplane(-1.18+dxc, 1.16+dyc, 0.578, 0.075, 0.055, C.warm, 0.05, night?1:0);
+  for(let i=0;i<5;i++) bx(-0.38, 0.94+i*0.11, 0.565, 0.17, 0.028, 0.012, i%2?C.matD:C.mat, 0.08);
   bplane(-1.18,1.18,-0.575, 0.2,0.26, C.matD, 0.1, 0);
-  // spare furled sail bundle on the cabin roof
-  bellipsoid(-0.85,1.88,0.1, 0.68,0.13,0.26, C.sail, 70, 0);
-  // mast step A-frame (static) + mast & yard (kind=6, rotate when lowering)
+  bellipsoid(-0.85,1.88,0.1, 0.68,0.13,0.26, C.sail, 70, 0);   // spare sail bundle on roof
+  // mast A-frame + mast & binding rings (kind=6)
   btube(0.18,0.66,0.42, 0.55,1.5,0, 0.045, C.woodD, 0.2, 0);
   btube(0.18,0.66,-0.42, 0.55,1.5,0, 0.045, C.woodD, 0.2, 0);
   btube(0.55,0.6,0, 0.55,3.55,0, 0.06, C.woodD, 0.2, 6);
-  // sail (kind=3, furls onto the mast) + furled bundle hugging the mast (kind=7)
+  for(let i=0;i<5;i++) bring(0.55, 1.15+i*0.55, 0, 0.078, C.wood, 0.09, 6);
+  // sail (kind=3) + furled bundle & lashed yard (kind=7) + rope ties
   for(let i=0;i<29;i++) for(let j=0;j<31;j++){
     const ly=j/30;
     bpush(0.55-0.95+(i/28)*1.9, 1.28+ly*1.92, 0.07, 0,0,1, (j%7===6?C.sail:C.sailL), 0.22, 0, 3);
   }
   btube(0.63,1.3,0.12, 0.63,3.15,0.12, 0.085, C.sail, 0.16, 7);
   btube(0.47,1.3,-0.12, 0.47,3.15,-0.12, 0.07, C.woodD, 0.16, 7);
-  // cargo: woven baskets fore, bales aft
+  for(const ty of [1.7,2.3,2.9]) btube(0.55,ty,-0.16, 0.55,ty,0.24, 0.02, C.rope, 0.08, 7);
+  // cargo: banded woven baskets fore, bales aft, rope coil
   bellipsoid(1.5,0.9,0.28, 0.34,0.27,0.34, C.mat, 90, 0);
+  bring(1.5,0.82,0.28, 0.35, C.matD, 0.09, 0); bring(1.5,1.02,0.28, 0.31, C.matD, 0.09, 0);
   bellipsoid(1.45,0.9,-0.32, 0.3,0.24,0.3, C.matD, 80, 0);
+  bring(1.45,0.84,-0.32, 0.31, C.mat, 0.09, 0);
   bellipsoid(1.55,1.32,0.02, 0.26,0.2,0.26, C.mat, 70, 0);
   bx(-1.98,0.9,0.27, 0.28,0.17,0.26, C.rope, 0.2);
   bx(-1.98,0.9,-0.3, 0.28,0.17,0.26, C.mat, 0.2);
+  bring(2.0,0.76,-0.35, 0.16, C.rope, 0.08, 0); bring(2.0,0.84,-0.35, 0.13, C.rope, 0.08, 0);
   // bow & stern lanterns
-  for(let i=0;i<20;i++){ const a=i*2.4; bpush(2.62+Math.cos(a)*0.11,0.98+Math.sin(a)*0.12,Math.sin(a*1.3)*0.1, 0,1,0, C.lampR, 0.17, 1); }
-  for(let i=0;i<20;i++){ const a=i*2.4; bpush(-2.6+Math.cos(a)*0.11,1.05+Math.sin(a)*0.12,Math.sin(a*1.3)*0.1, 0,1,0, C.lamp, 0.17, 1); }
-  // boatmen: bow puller leaning into the rope, roof hand at the mast, stern poler
+  for(let i=0;i<20;i++){ const a=i*2.4; bpush(2.62+Math.cos(a)*0.11,0.98+Math.sin(a)*0.12,Math.sin(a*1.3)*0.1, 0,1,0, C.lampR, 0.17, night?1:0); }
+  for(let i=0;i<20;i++){ const a=i*2.4; bpush(-2.6+Math.cos(a)*0.11,1.05+Math.sin(a)*0.12,Math.sin(a*1.3)*0.1, 0,1,0, C.lamp, 0.17, night?1:0); }
+  // boatmen: bow puller + rope, roof hand at the mast, stern poler
   btube(1.92,0.78,0.18, 2.18,1.38,0.18, 0.1, C.clothB, 0.14, 0);
-  bpush(2.24,1.56,0.18, 0,1,0, C.white, 0.16);
+  bpush(2.24,1.56,0.18, 0,1,0, SKIN, 0.16); bpush(2.26,1.66,0.18, 0,1,0, HAIR, 0.12);
   btube(2.3,1.35,0.18, 3.05,1.78,0.18, 0.022, C.rope, 0.12, 0);
   btube(-0.35,1.98,0, -0.02,1.9,0, 0.09, C.clothG, 0.13, 0);
-  bpush(0.04,2.04,0, 0,1,0, C.white, 0.15);
+  bpush(0.04,2.04,0, 0,1,0, SKIN, 0.15); bpush(0.06,2.13,0, 0,1,0, HAIR, 0.11);
   btube(-0.08,1.92,0, 0.34,1.72,0, 0.035, C.clothG, 0.1, 0);
   btube(-2.12,0.78,-0.25, -2.06,1.5,-0.25, 0.1, C.clothB, 0.14, 0);
-  bpush(-2.04,1.66,-0.25, 0,1,0, C.white, 0.16);
+  bpush(-2.04,1.66,-0.25, 0,1,0, SKIN, 0.16); bpush(-2.02,1.75,-0.25, 0,1,0, HAIR, 0.12);
   btube(-2.2,1.25,-0.3, -2.88,-0.05,-0.5, 0.03, C.woodD, 0.16, 0);
-})();
+}
 
-/* fog particles */
-const FOG=[]; for(let i=0;i<64;i++) FOG.push({x:-13+Math.random()*26, y:0.6+Math.random()*2.2, z:-2.5+Math.random()*5,
+/* fog particles (night mist; in day theme it reads as light haze) */
+const FOG=[]; for(let i=0;i<64;i++) FOG.push({x:-13+Math.random()*26, y:0.6+Math.random()*2.2, z:-3.5+Math.random()*7,
   s:9+Math.random()*15, v:0.05+Math.random()*0.12, a:0.010+Math.random()*0.016});
 
-/* ============ 3. renderer ============ */
-const cv=document.getElementById('view'), ctx=cv.getContext('2d');
+function buildAll(theme){
+  THEME=theme; C = theme==='day' ? C_DAY : C_NIGHT;
+  const l = theme==='day' ? [-0.5,0.82,0.3] : [-0.45,0.75,-0.35], m=Math.hypot(...l);
+  LIGHTV=[l[0]/m, l[1]/m, l[2]/m];
+  S.length=0; BOAT.length=0;
+  buildEnv(); buildBridge(); buildHouses(); buildBoat();
+}
+buildAll('day');
+
+
+/* ============ 3. renderer (WebGL2) ============
+   GPU point-sprite splats with a depth buffer (no per-frame CPU sort), rendered
+   into a 640x360 framebuffer, then a resolve pass does palette quantization +
+   checker dither + nearest-neighbour upscale. Falls back to a simple 2D
+   painter if WebGL2 is unavailable. */
+let cv=document.getElementById('view');
 const W=640,H=360;
-let pixel=true, fogOn=true, reflOn=true, playing=true, scrubbing=false;
-let yaw=2.59, pitch=0.20, dragYaw=null;
+let pixel=true, fogOn=false, reflOn=true, playing=true, scrubbing=false;
+let yaw=2.36, pitch=0.30, dragYaw=null;
 const LOOP=26; let simT=2;
-const PAL=[]; // quantized palette built from scene colors x shade levels
-function qcol(r,g,b,sh){ const k=((r*sh)|0)+','+((g*sh)|0)+','+((b*sh)|0); return 'rgb('+((r*sh)|0)+','+((g*sh)|0)+','+((b*sh)|0)+')'; }
-const shadeCache=new Map();
-function shadeStr(r,g,b,sh){
-  const sr=Math.min(255,r*sh)|0, sg=Math.min(255,g*sh)|0, sb=Math.min(255,b*sh)|0;
-  const key=(sr<<16)|(sg<<8)|sb; let v=shadeCache.get(key);
-  if(v===undefined){ v='rgb('+sr+','+sg+','+sb+')'; shadeCache.set(key,v); } return v;
-}
 function smooth(a,b,x){ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); }
-function sailFactor(bx){ // 1 = full sail, 0.16 = lowered
+function sailFactor(bx){ // 1 = mast up full sail, 0.16 = mast lowered aft
   const d=Math.abs(bx);
-  if(d>3.4) return 1;
-  if(d<1.7) return 0.16;
-  return bx<0 ? 1-(1-0.16)*smooth(3.4,1.7,d) : 0.16+(1-0.16)*smooth(1.7,3.4,d);
+  if(d>4.4) return 1;
+  if(d<2.3) return 0.16;
+  return bx<0 ? 1-(1-0.16)*smooth(4.4,2.3,d) : 0.16+(1-0.16)*smooth(2.3,4.4,d);
 }
-const LIGHT=[-0.45,0.75,-0.35];
-function frame(dt){
+
+/* ---- shared per-frame world state ---- */
+function computeWorld(dt){
   if(playing&&!scrubbing) simT=(simT+dt)%LOOP;
-  const t=simT;
-  const boatX=-9.5+ (t/LOOP)*19;
-  const sf=sailFactor(boatX);
-  const bob=Math.sin(t*1.4)*0.045;
+  const t=simT, boatX=-8.5+(t/LOOP)*17, sf=sailFactor(boatX), bob=Math.sin(t*1.4)*0.045;
   const camYaw=yaw+Math.sin(t*0.11)*0.05, camPitch=pitch;
-  const DIST=19, F=250, TX=0, TY=2.2;
   const cP=Math.cos(camPitch), sP=Math.sin(camPitch), cY=Math.cos(camYaw), sY=Math.sin(camYaw);
-  const fwd=[sY*cP, -sP, cY*cP];
+  const fwd=[sY*cP,-sP,cY*cP];
   let rgt=[-fwd[2],0,fwd[0]]; const rl=Math.hypot(rgt[0],rgt[2])||1; rgt=[rgt[0]/rl,0,rgt[2]/rl];
   const up2=[rgt[1]*fwd[2]-rgt[2]*fwd[1], rgt[2]*fwd[0]-rgt[0]*fwd[2], rgt[0]*fwd[1]-rgt[1]*fwd[0]];
-  const projectPoint=(x,y,z)=>{
-    const dx=x-TX, dy=y-TY, dz=z;
-    const depth=dx*fwd[0]+dy*fwd[1]+dz*fwd[2]+DIST;
-    if(depth<2) return null;
-    const vx=dx*rgt[0]+dz*rgt[2], vy=dx*up2[0]+dy*up2[1]+dz*up2[2], sc=F/depth;
-    return {sx:W/2+vx*sc, sy:H/2-vy*sc, depth, sc};
-  };
-  const all=[];
-  const proj=(s,ox,oy,oz)=>{
-    const pr=projectPoint(s.x+ox, s.y+oy, s.z+oz);
-    if(!pr) return;
-    if(pr.sx<-30||pr.sx>W+30||pr.sy<-30||pr.sy>H+30) return;
-    all.push({sx:pr.sx,sy:pr.sy,z:pr.depth,size:Math.max(1.6,s.size*pr.sc*0.55),nl:s.nx*LIGHT[0]+s.ny*LIGHT[1]+s.nz*LIGHT[2],
-      r:s.r,g:s.g,b:s.b,em:s.em,kind:s.kind,seed:(s.x*12.9+s.z*7.7)|0});
-  };
-  for(const s of S) proj(s,0, s.kind===1? Math.sin(t*1.3+s.x*0.9+s.z*2.0)*0.02 : 0, 0);
-  for(const w of WALKERS){ w.u+= (playing? dt*w.sp*w.dir : 0); if(w.u>0.92){w.u=0.92;w.dir=-1} if(w.u<0.08){w.u=0.08;w.dir=1}
-    for(const s of walkerSplats(w)) proj(s,0,0,0); }
+  return {t,boatX,sf,bob,fwd,rgt,up2,DIST:13.5,F:250,TX:0,TY:2.0};
+}
+/* dynamic splats (boat group transformed + walkers + reflection streaks), world space */
+function dynamicSplats(wd){
+  const out=[];
+  const {boatX,sf,bob,t}=wd;
   for(const s of BOAT){
-    let lx=s.x*1.3, ly=s.y*1.22, lz=s.z*1.25, sizeF=1;
+    let lx=s.x*1.85, ly=s.y*1.72, lz=s.z*1.8, sizeF=1;
     if(s.kind===3||s.kind===6||s.kind===7){
       let px=s.x, py=s.y, pz=s.z;
       if(s.kind===3){ const base=1.28; py=base+(py-base)*Math.max(0.05,sf); }
       if(s.kind===7) sizeF=0.35+0.9*(1-sf);
       const A=(1-sf)*1.02, cA=Math.cos(A), sA=Math.sin(A);
       const dx=px-0.55, dy=py-0.62;
-      px=0.55+dx*cA-dy*sA; py=0.62+dx*sA+dy*cA;
-      lx=px*1.3; ly=py*1.22; lz=pz*1.25;
+      px=0.55+dx*cA-dy*sA; py=0.62+dx*sA+dy*cA; // mast group rotates AFT (toward the stern, -X)
+      lx=px*1.85; ly=py*1.72; lz=pz*1.8;
     }
-    proj({x:lx,y:ly,z:lz,nx:s.nx,ny:s.ny,nz:s.nz,r:s.r,g:s.g,b:s.b,size:s.size*1.3*sizeF,em:s.em,kind:0}, boatX, bob, 0);
+    out.push({x:lx+boatX, y:ly+bob, z:lz, nx:s.nx, ny:s.ny, nz:s.nz, r:s.r, g:s.g, b:s.b, size:s.size*1.85*sizeF, em:s.em, kind:0, seed:(s.x*12.9+s.z*7.7)|0});
   }
+  for(const w of WALKERS){
+    w.u+=(playing? 0.016*w.sp*w.dir : 0); if(w.u>0.92){w.u=0.92;w.dir=-1} if(w.u<0.08){w.u=0.08;w.dir=1}
+    for(const s of walkerSplats(w)) out.push(s);
+  }
+  if(reflOn){
+    const streak=(wx,wz,r,g,b,ph)=>{
+      const wob=Math.sin(t*2.4+ph+wx*1.3)*0.18;
+      for(let i=0;i<4;i++) out.push({x:wx+wob*(i*0.4), y:0.03, z:wz, nx:0,ny:1,nz:0, r,g,b, size:0.34, em:1, kind:2, seed:i*3+((wx*7)|0)});
+    };
+    if(THEME==='night') streak(-7.8,-4.0, 233,228,198, 0);
+    streak(boatX+4.85,0, 217,108,44, 1.3);
+    streak(boatX-4.8,0, 255,184,77, 4.1);
+    streak(-1.56,-4.09, 255,184,77, 2.2); streak(1.56,4.09, 255,184,77, 5.0);
+    streak(-7.45,-2.6, 255,233,176, 3.3); streak(8.45,-2.4, 217,108,44, 0.7);
+  }
+  return out;
+}
+function updateHud(wd){
+  const cap=document.getElementById('caption');
+  cap.textContent = wd.boatX<-4.4 ? '扬帆顺流 · 灯火两岸' : wd.boatX<-2.0 ? '桥洞在前 —— 放桅收帆！' :
+    Math.abs(wd.boatX)<=2.3 ? '桅杆放倒 · 帆卷在桅上，贴着桥洞过' : wd.boatX<4.4 ? '过桥 —— 立桅扬帆' : '顺流而下 · 月下汴河';
+  document.getElementById('hud').innerHTML =
+    'splats ≈ '+(S.length+BOAT.length)+' · '+(window.__glOK?'WebGL2':'2D 回退')+'<br>逻辑分辨率 640×360<br>船位 x='+wd.boatX.toFixed(1)+' · 桅 '+(wd.sf>0.9?'直立':wd.sf<0.3?'已放倒':'放倒中 '+((1-wd.sf)*100|0)+'%');
+  document.getElementById('clock').textContent='t='+wd.t.toFixed(1)+'s / '+LOOP+'s';
+  if(!scrubbing) document.getElementById('scrub').value=(wd.t/LOOP*1000)|0;
+}
+
+/* ---- attribute packing: pos3 nrm3 col3 size em kind seed = 13 floats ---- */
+const STRIDE=13; // pos3 + nrm3 + col3 + size + em + kind + seed
+function packInto(arr, list, off){
+  let o=off;
+  for(const s of list){
+    arr[o++]=s.x; arr[o++]=s.y; arr[o++]=s.z;
+    arr[o++]=s.nx; arr[o++]=s.ny; arr[o++]=s.nz;
+    arr[o++]=s.r/255; arr[o++]=s.g/255; arr[o++]=s.b/255;
+    arr[o++]=s.size; arr[o++]=s.em; arr[o++]=s.kind; arr[o++]=s.seed||0;
+  }
+  return o;
+}
+
+/* ---- WebGL2 path ---- */
+const gl=cv.getContext('webgl2',{antialias:false, alpha:false});
+window.__glOK=!!gl;
+let glOK=false, prog, progFog, progPost, vaoStatic, vaoDyn, vaoFog, bufStatic, bufDyn, bufFog, fbo, fboTex, uS={}, uF={}, uP={};
+function sh(gl,type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prg(gl,vs,fs){ const p=gl.createProgram(); gl.attachShader(p,sh(gl,gl.VERTEX_SHADER,vs)); gl.attachShader(p,sh(gl,gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+const VS=`#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNrm; layout(location=2) in vec3 aCol;
+layout(location=3) in float aSize; layout(location=4) in float aEm; layout(location=5) in float aKind; layout(location=6) in float aSeed;
+uniform vec3 uFwd,uRgt,uUp,uTgt,uLight; uniform float uF,uDist,uTime;
+out vec3 vCol; out float vShade,vEm,vKind,vSeed;
+void main(){
+  vec3 p=aPos;
+  if(aKind==1.0) p.y += sin(uTime*1.3 + aPos.x*0.9 + aPos.z*2.0)*0.02;
+  vec3 d=p-uTgt;
+  float depth=dot(d,uFwd)+uDist;
+  vCol=aCol; vEm=aEm; vKind=aKind; vSeed=aSeed;
+  vShade=dot(aNrm,uLight);
+  if(depth<2.0){ gl_Position=vec4(0.0,0.0,-3.0,1.0); gl_PointSize=0.0; return; }
+  float vx=dot(vec3(d.x,0.0,d.z),uRgt);
+  float vy=dot(d,uUp);
+  float sc=uF/depth;
+  gl_Position=vec4(vx*sc/(640.0*0.5), vy*sc/(360.0*0.5), (depth-2.0)/58.0*2.0-1.0, 1.0);
+  gl_PointSize=max(1.0, aSize*sc*0.82);
+}`;
+const FS=`#version 300 es
+precision highp float;
+in vec3 vCol; in float vShade,vEm,vKind,vSeed;
+uniform float uTime;
+out vec4 o;
+void main(){
+  vec2 pc=gl_PointCoord-0.5; if(dot(pc,pc)>0.25) discard;
+  float sh;
+  if(vKind==5.0){ sh=0.42+0.72*max(0.0,vShade); }              // moon: true sphere shading, no flicker
+  else if(vEm>0.5){ sh=0.9+0.14*sin(uTime*11.0+vSeed*1.7); }
+  else { sh=0.34+0.85*max(0.0,vShade); }
+  if(vKind==1.0) sh*=0.85+0.3*sin(uTime*2.1+vSeed*2.3);        // water shimmer
+  if(vKind==2.0) sh*=0.5;                                       // reflection streaks
+  o=vec4(vCol*sh,1.0);
+}`;
+const VSF=`#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in float aSize; layout(location=2) in float aAlpha;
+uniform vec3 uFwd,uRgt,uUp,uTgt; uniform float uF,uDist;
+out float vA;
+void main(){
+  vec3 d=aPos-uTgt; float depth=dot(d,uFwd)+uDist;
+  if(depth<2.0){ gl_Position=vec4(0.0,0.0,-3.0,1.0); gl_PointSize=0.0; vA=0.0; return; }
+  float vx=dot(vec3(d.x,0.0,d.z),uRgt); float vy=dot(d,uUp); float sc=uF/depth;
+  gl_Position=vec4(vx*sc/320.0, vy*sc/180.0, (depth-2.0)/58.0*2.0-1.0, 1.0);
+  gl_PointSize=aSize*sc; vA=aAlpha;
+}`;
+const FSF=`#version 300 es
+precision mediump float; in float vA; out vec4 o;
+void main(){
+  vec2 pc=gl_PointCoord-0.5; float r=length(pc)*2.0;
+  float a=vA*smoothstep(1.0,0.15,r);
+  o=vec4(vec3(0.68,0.74,0.82), a);
+}`;
+const VSP=`#version 300 es
+out vec2 vUv;
+void main(){ vec2 p=vec2((gl_VertexID<<1)&2, gl_VertexID&2); vUv=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0); }`;
+const FSP=`#version 300 es
+precision mediump float; in vec2 vUv; uniform sampler2D uTex; uniform float uPixel; out vec4 o;
+void main(){
+  vec3 c=texture(uTex,vUv).rgb;
+  if(uPixel>0.5){
+    vec2 lp=floor(vUv*vec2(640.0,360.0));
+    float ch=mod(lp.x+lp.y,2.0)*0.09-0.045;
+    c+=ch;
+    c=floor(clamp(c,0.0,1.0)*10.625+0.5)/10.625;   // ~24-step palette quantization
+  }
+  o=vec4(c,1.0);
+}`;
+function setupAttrib(vao, buf, data, usage){
+  gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, data, usage);
+  const FS4=4;
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,STRIDE*FS4,0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,STRIDE*FS4,3*FS4);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,3,gl.FLOAT,false,STRIDE*FS4,6*FS4);
+  gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3,1,gl.FLOAT,false,STRIDE*FS4,9*FS4);
+  gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4,1,gl.FLOAT,false,STRIDE*FS4,10*FS4);
+  gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5,1,gl.FLOAT,false,STRIDE*FS4,11*FS4);
+  gl.enableVertexAttribArray(6); gl.vertexAttribPointer(6,1,gl.FLOAT,false,STRIDE*FS4,12*FS4);
+}
+if(gl){
+  try{
+    prog=prg(gl,VS,FS); progFog=prg(gl,VSF,FSF); progPost=prg(gl,VSP,FSP);
+    for(const n of ['uFwd','uRgt','uUp','uTgt','uLight','uF','uDist','uTime']) uS[n]=gl.getUniformLocation(prog,n);
+    for(const n of ['uFwd','uRgt','uUp','uTgt','uF','uDist']) uF[n]=gl.getUniformLocation(progFog,n);
+    uP.uTex=gl.getUniformLocation(progPost,'uTex'); uP.uPixel=gl.getUniformLocation(progPost,'uPixel');
+    // static splats
+    bufStatic=gl.createBuffer();
+    const sArr=new Float32Array(S.length*STRIDE); packInto(sArr,S,0);
+    vaoStatic=gl.createVertexArray(); setupAttrib(vaoStatic, bufStatic, sArr, gl.STATIC_DRAW);
+    // dynamic buffer (boat+walkers+reflections), sized generously
+    vaoDyn=gl.createVertexArray(); bufDyn=gl.createBuffer();
+    setupAttrib(vaoDyn, bufDyn, new Float32Array(20000*STRIDE), gl.DYNAMIC_DRAW);
+    // fog buffer: pos3 size alpha = 5 floats
+    vaoFog=gl.createVertexArray(); bufFog=gl.createBuffer();
+    gl.bindVertexArray(vaoFog); gl.bindBuffer(gl.ARRAY_BUFFER, bufFog);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(FOG.length*5), gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,1,gl.FLOAT,false,20,12);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2,1,gl.FLOAT,false,20,16);
+    // framebuffer 640x360 with depth
+    fboTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,fboTex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,W,H,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+    fbo=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,fboTex,0);
+    const rb=gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER,rb);
+    gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT16,W,H);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,rb);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+    cv.width=1280; cv.height=720;
+    glOK=true;
+  }catch(e){ console.warn('WebGL2 init failed, falling back to 2D', e); glOK=false; window.__glOK=false; }
+}
+const dynArr=new Float32Array(20000*STRIDE);
+function uploadStatic(){ if(!glOK) return; const sArr=new Float32Array(S.length*STRIDE); packInto(sArr,S,0);
+  gl.bindVertexArray(vaoStatic); gl.bindBuffer(gl.ARRAY_BUFFER,bufStatic); gl.bufferData(gl.ARRAY_BUFFER,sArr,gl.STATIC_DRAW); }
+function drawGL(wd, dyn){
+  gl.bindFramebuffer(gl.FRAMEBUFFER,fbo); gl.viewport(0,0,W,H);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.BLEND);
+  if(THEME==='day') gl.clearColor(0.62,0.74,0.85,1); else gl.clearColor(0.043,0.063,0.149,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(prog);
+  gl.uniform3fv(uS.uFwd,wd.fwd); gl.uniform3fv(uS.uRgt,wd.rgt); gl.uniform3fv(uS.uUp,wd.up2);
+  gl.uniform3f(uS.uTgt,wd.TX,wd.TY,0); gl.uniform3fv(uS.uLight,LIGHTV);
+  gl.uniform1f(uS.uF,wd.F); gl.uniform1f(uS.uDist,wd.DIST); gl.uniform1f(uS.uTime,wd.t);
+  gl.bindVertexArray(vaoStatic); gl.drawArrays(gl.POINTS,0,S.length);
+  const n=packInto(dynArr,dyn,0)/STRIDE;
+  gl.bindVertexArray(vaoDyn); gl.bindBuffer(gl.ARRAY_BUFFER,bufDyn);
+  gl.bufferSubData(gl.ARRAY_BUFFER,0,dynArr.subarray(0,n*STRIDE));
+  gl.drawArrays(gl.POINTS,0,n);
+  if(fogOn){
+    const fa=new Float32Array(FOG.length*5);
+    FOG.forEach((f,i)=>{ fa[i*5]=f.x; fa[i*5+1]=f.y; fa[i*5+2]=f.z; fa[i*5+3]=f.s*0.9; fa[i*5+4]=f.a*1.6; });
+    gl.useProgram(progFog);
+    gl.uniform3fv(uF.uFwd,wd.fwd); gl.uniform3fv(uF.uRgt,wd.rgt); gl.uniform3fv(uF.uUp,wd.up2);
+    gl.uniform3f(uF.uTgt,wd.TX,wd.TY,0); gl.uniform1f(uF.uF,wd.F); gl.uniform1f(uF.uDist,wd.DIST);
+    gl.bindVertexArray(vaoFog); gl.bindBuffer(gl.ARRAY_BUFFER,bufFog);
+    gl.bufferSubData(gl.ARRAY_BUFFER,0,fa);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.drawArrays(gl.POINTS,0,FOG.length);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cv.width,cv.height);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(progPost); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,fboTex);
+  gl.uniform1i(uP.uTex,0); gl.uniform1f(uP.uPixel, pixel?1:0);
+  gl.drawArrays(gl.TRIANGLES,0,3);
+}
+
+/* ---- 2D fallback (painter) ---- */
+let ctx2=null;
+if(!glOK){ const c2=document.createElement('canvas'); c2.width=W; c2.height=H; c2.id='view';
+  c2.style.width='100%'; c2.style.display='block'; cv.replaceWith(c2); cv=c2; ctx2=c2.getContext('2d'); }
+function draw2D(wd, dyn){
+  const {fwd,rgt,up2,DIST,F,TX,TY,t}=wd;
+  const pp=(x,y,z)=>{ const dx=x-TX, dy=y-TY, dz=z;
+    const depth=dx*fwd[0]+dy*fwd[1]+dz*fwd[2]+DIST; if(depth<2) return null;
+    const vx=dx*rgt[0]+dz*rgt[2], vy=dx*up2[0]+dy*up2[1]+dz*up2[2], sc=F/depth;
+    return {sx:W/2+vx*sc, sy:H/2-vy*sc, depth, sc}; };
+  const all=[];
+  const add=(s,dy)=>{ const pr=pp(s.x,s.y+(dy||0),s.z); if(!pr) return;
+    all.push({sx:pr.sx,sy:pr.sy,z:pr.depth,size:Math.max(1.6,s.size*pr.sc*0.78),
+      nl:s.nx*LIGHTV[0]+s.ny*LIGHTV[1]+s.nz*LIGHTV[2], r:s.r,g:s.g,b:s.b,em:s.em,kind:s.kind,seed:s.seed||((s.x*12.9+s.z*7.7)|0)}); };
+  for(const s of S) add(s, s.kind===1? Math.sin(t*1.3+s.x*0.9+s.z*2.0)*0.02 : 0);
+  for(const s of dyn) add(s,0);
   all.sort((a,b)=>b.z-a.z);
-  /* sky */
-  ctx.fillStyle='#0b1026'; ctx.fillRect(0,0,W,H);
-  /* draw splats back-to-front */
+  ctx2.fillStyle=THEME==='day'?'#9ec2d9':'#0b1026'; ctx2.fillRect(0,0,W,H);
   for(const p of all){
     let sh;
-    if(p.em){ sh = p.kind===5 ? 1.02 : 0.9+0.14*Math.sin(t*11+p.seed*1.7); }
+    if(p.kind===5) sh=0.42+0.72*Math.max(0,p.nl);
+    else if(p.em) sh=0.9+0.14*Math.sin(t*11+p.seed*1.7);
     else sh=0.34+0.85*Math.max(0,p.nl);
-    if(p.kind===1){ sh*= 0.85+0.3*Math.sin(t*2.1+p.seed*2.3); } // water shimmer
-    let size=p.size;
-    if(pixel){
-      // dither: checker offset nudges shade, palette snap via 24-step channels
-      const dith=((p.sx|0)+(p.sy|0))%2? 0.045 : -0.045;
-      sh=Math.max(0.12, sh+dith);
-      const qr=v=>Math.round(Math.min(255,v*sh)/24)*24;
-      ctx.fillStyle='rgb('+qr(p.r)+','+qr(p.g)+','+qr(p.b)+')';
-      ctx.fillRect(p.sx-size/2, p.sy-size/2, size, size);
-    } else {
-      ctx.fillStyle=shadeStr(p.r,p.g,p.b,sh);
-      ctx.beginPath(); ctx.ellipse(p.sx,p.sy,size*0.75,size*0.55,0,0,6.284); ctx.fill();
-    }
+    if(p.kind===1) sh*=0.85+0.3*Math.sin(t*2.1+p.seed*2.3);
+    if(p.kind===2) sh*=0.5;
+    const c=v=>Math.min(255,v*sh)|0;
+    ctx2.fillStyle='rgb('+c(p.r)+','+c(p.g)+','+c(p.b)+')';
+    ctx2.fillRect(p.sx-p.size/2,p.sy-p.size/2,p.size,p.size);
   }
-  /* reflections: mirrored emissive streaks on the water band */
-  if(reflOn){
-    ctx.save(); ctx.globalAlpha=0.5;
-    const refl=(wx,wy,wz,c,ph)=>{
-      const pr=projectPoint(wx,0,wz); if(!pr) return;
-      const sx=pr.sx, sy2=pr.sy;
-      const wob=Math.sin(t*2.4+ph+wx*1.3)*1.6;
-      ctx.fillStyle=c;
-      for(let i=0;i<4;i++) ctx.fillRect(sx+wob*(i*0.4)-2, sy2+2+i*3.2, 4.5, 2.1);
-    };
-    refl(-7.8,7.6,-7.5,'rgba(233,228,198,0.20)',0);            // moon path (approx from moon x)
-    refl(boatX+2.15,0.9,0,'rgba(217,108,44,0.55)',1.3);
-    refl(boatX-2.1,1.0,0,'rgba(255,184,77,0.55)',4.1);
-    refl(-1.22,4.1,-2.35,'rgba(255,184,77,0.4)',2.2); refl(1.22,4.1,2.35,'rgba(255,184,77,0.4)',5.0);
-    refl(-7.45,2.3,-2.6,'rgba(255,233,176,0.35)',3.3); refl(8.45,2.8,-2.4,'rgba(217,108,44,0.35)',0.7);
-    ctx.restore();
-  }
-  /* fog: big soft splats drifting, drawn last, low alpha */
-  if(fogOn){
-    ctx.save();
-    for(const f of FOG){
-      f.x+= (playing? dt*f.v:0); if(f.x>14) f.x=-14;
-      const pr=projectPoint(f.x,f.y,f.z); if(!pr) continue;
-      const sc=pr.sc, sx=pr.sx, sy2=pr.sy;
-      ctx.globalAlpha=f.a; ctx.fillStyle='#aebdd2';
-      if(pixel) ctx.fillRect(sx-f.s*sc*0.06, sy2-f.s*sc*0.02, f.s*sc*0.12, f.s*sc*0.04);
-      else { ctx.beginPath(); ctx.ellipse(sx,sy2,f.s*sc*0.12,f.s*sc*0.045,0,0,6.284); ctx.fill(); }
-    }
-    ctx.restore();
-  }
-  /* caption / hud */
-  const cap=document.getElementById('caption');
-  cap.textContent = boatX<-3.4 ? '扬帆顺流 · 灯火两岸' : boatX<-1.2 ? '桥洞在前 —— 放桅收帆！' :
-    Math.abs(boatX)<=1.7 ? '桅杆放倒 · 帆卷在桅上，贴着桥洞过' : boatX<3.4 ? '过桥 —— 立桅扬帆' : '顺流而下 · 月下汴河';
-  document.getElementById('hud').innerHTML =
-    'splats ≈ '+(S.length+BOAT.length)+'<br>逻辑分辨率 640×360<br>船位 x='+boatX.toFixed(1)+' · 桅 '+(sf>0.9?'直立':sf<0.3?'已放倒':'放倒中 '+((1-sf)*100|0)+'%');
-  document.getElementById('clock').textContent='t='+t.toFixed(1)+'s / '+LOOP+'s';
-  if(!scrubbing) document.getElementById('scrub').value=(t/LOOP*1000)|0;
 }
+
+function frame(dt){
+  const wd=computeWorld(dt);
+  if(fogOn||true) for(const f of FOG){ if(playing) f.x+=dt*f.v; if(f.x>14) f.x=-14; }
+  const dyn=dynamicSplats(wd);
+  if(glOK) drawGL(wd,dyn); else draw2D(wd,dyn);
+  updateHud(wd);
+}
+window.__setT=t=>{ simT=t; };
+window.__state=()=>({splats:S.length+BOAT.length, glOK, moonKind5:S.filter(s=>s.kind===5).length});
+
 let last=performance.now();
 function loopFn(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; frame(dt); requestAnimationFrame(loopFn); }
 requestAnimationFrame(loopFn);
@@ -403,6 +661,9 @@ $('btnPlay').onclick=e=>{ playing=!playing; e.target.textContent=playing?'暂停
 $('btnPixel').onclick=e=>{ pixel=!pixel; e.target.textContent='像素化 Resolve：'+(pixel?'开':'关'); e.target.classList.toggle('on',pixel); };
 $('btnFog').onclick=e=>{ fogOn=!fogOn; e.target.textContent='雾气：'+(fogOn?'开':'关'); e.target.classList.toggle('on',fogOn); };
 $('btnRefl').onclick=e=>{ reflOn=!reflOn; e.target.textContent='水面倒影：'+(reflOn?'开':'关'); e.target.classList.toggle('on',reflOn); };
+$('btnTheme').onclick=e=>{ const night=THEME!=='night'; buildAll(night?'night':'day'); uploadStatic();
+  fogOn=night; $('btnFog').textContent='雾气：'+(fogOn?'开':'关'); $('btnFog').classList.toggle('on',fogOn);
+  e.target.textContent='夜景：'+(night?'开':'关'); e.target.classList.toggle('on',night); };
 $('scrub').addEventListener('pointerdown',()=>scrubbing=true);
 $('scrub').addEventListener('pointerup',()=>scrubbing=false);
 $('scrub').addEventListener('input',e=>{ simT=e.target.value/1000*LOOP; });
@@ -410,6 +671,9 @@ cv.addEventListener('pointerdown',e=>{ dragYaw={x:e.clientX,y:e.clientY,yaw,pitc
 cv.addEventListener('pointermove',e=>{ if(!dragYaw) return;
   yaw=dragYaw.yaw+(e.clientX-dragYaw.x)*0.005; pitch=Math.min(0.9,Math.max(0.05,dragYaw.pitch+(e.clientY-dragYaw.y)*0.004)); });
 cv.addEventListener('pointerup',()=>dragYaw=null);
+const _q=new URLSearchParams(location.search);
+if(_q.has('t')){ simT=Math.min(25.9,Math.max(0,parseFloat(_q.get('t'))||0)); playing=false; const b=$('btnPlay'); b.textContent='播放'; b.classList.remove('on'); }
+if(_q.get('theme')==='night'){ buildAll('night'); uploadStatic(); fogOn=true; const fb=$('btnFog'); fb.textContent='雾气：开'; fb.classList.add('on'); const tb=$('btnTheme'); tb.textContent='夜景：开'; tb.classList.add('on'); }
 </script>
 </body>
 </html>
