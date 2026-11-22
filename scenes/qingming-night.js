@@ -28,7 +28,7 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     const B = makeBuilder(seed, PAL);
     const S = K.sculpt(makeSculpt(B));
     Object.assign(S, {
-      res: 0.16, amb: 0.32, sky: 0.18, sunK: 0.55,
+      res: 0.10, amb: 0.32, sky: 0.18, sunK: 0.55,
       sun: K.V.norm([-0.45, 0.75, -0.35]) // moonlight, from back-left high
     });
 
@@ -61,12 +61,12 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     for (const rx of [-1.16, -0.58, 0, 0.58, 1.16])
       for (let i = 0; i <= 16; i++) {
         const th = (i / 16) * Math.PI, z = Math.cos(th) * R, y = CY - 0.08 + Math.sin(th) * R;
-        S.box([rx, y, z], [0.10, 0.17, 0.32], i % 2 ? redDark : redWood, { rd: 0.03, res: 0.15 });
+        S.box([rx, y, z], [0.10, 0.17, 0.32], i % 2 ? redDark : redWood, { rd: 0.03, res: 0.11 });
       }
     for (const fx of [-1.32, 1.32])
       for (let i = 0; i <= 16; i++) {
         const th = (i / 16) * Math.PI, z = Math.cos(th) * (R + 0.1), y = CY + Math.sin(th) * (R + 0.1);
-        S.box([fx, y, z], [0.09, 0.24, 0.34], redWood, { rd: 0.03, res: 0.15 });
+        S.box([fx, y, z], [0.09, 0.24, 0.34], redWood, { rd: 0.03, res: 0.11 });
       }
     for (const sd of [-1, 1]) {
       S.box([0, 0.55, sd * 3.35], [1.5, 0.85, 0.75], stoneDark, { rd: 0.05 });
@@ -75,7 +75,7 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     for (let i = 0; i <= 12; i++) {
       const th = (i / 12) * Math.PI;
       const z = Math.cos(th) * (R + 0.42), y = CY + Math.sin(th) * (R + 0.42);
-      S.box([0, y, z], [1.34, 0.09, 0.34], wood, { res: 0.14 });
+      S.box([0, y, z], [1.34, 0.09, 0.34], wood, { res: 0.11 });
       for (const fx of [-1.3, 1.3]) {
         S.box([fx, y + 0.36, z], [0.055, 0.3, 0.055], redDark, {});
         if (i === 2 || i === 10) S.ball([fx, y + 0.85, z], 0.13, lampRed, { ghost: true, res: 0.07 });
@@ -93,7 +93,7 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     function house(x, z, w, h, d) {
       S.box([x, 0.75 + h / 2, z], [w / 2, h / 2, d / 2], wood, { rd: 0.04 });
       for (let i = 0; i < 3; i++)
-        S.box([x, 0.75 + h + 0.16 + i * 0.22, z], [w / 2 + 0.35 - i * 0.28, 0.11, d / 2 + 0.35 - i * 0.26], roof, { res: 0.15 });
+        S.box([x, 0.75 + h + 0.16 + i * 0.22, z], [w / 2 + 0.35 - i * 0.28, 0.11, d / 2 + 0.35 - i * 0.26], roof, { res: 0.11 });
       S.box([x - w * 0.22, 0.75 + h * 0.55, z + d / 2 + 0.03], [0.16, 0.22, 0.03], lampGold, { ghost: true, res: 0.06 });
       S.ball([x + w / 2 + 0.15, 0.75 + h + 0.55, z], 0.13, lampRed, { ghost: true, res: 0.07 });
     }
@@ -111,28 +111,28 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     // ---- trees ----
     function tree(x, z, s) {
       S.tube([[x, 0.7, z], [x + 0.15 * s, 0.7 + 1.1 * s, z]], 0.09 * s, 0.06 * s, woodDark, {});
-      S.ball([x + 0.2 * s, 0.7 + 1.55 * s, z], [0.85 * s, 0.62 * s, 0.8 * s], leaf, { res: 0.15 });
-      S.ball([x - 0.45 * s, 0.7 + 1.25 * s, z + 0.2], [0.55 * s, 0.42 * s, 0.5 * s], leaf, { res: 0.15 });
+      S.ball([x + 0.2 * s, 0.7 + 1.55 * s, z], [0.85 * s, 0.62 * s, 0.8 * s], leaf, { res: 0.11 });
+      S.ball([x - 0.45 * s, 0.7 + 1.25 * s, z + 0.2], [0.55 * s, 0.42 * s, 0.5 * s], leaf, { res: 0.11 });
     }
     tree(-9.8, -3.6, 1.15); tree(3.4, -3.9, 0.95); tree(-6.2, 4.6, 1.0); tree(10.2, 4.4, 1.2);
 
     // ---- the boat, approaching the arch: mast LOWERED diagonally, sail furled on it (per the reference) ----
     const bx = 4.6, bz = 0;
-    S.ball([bx, 0.28, bz], [2.3, 0.5, 0.72], woodDark, { res: 0.14 });            // hull
+    S.ball([bx, 0.28, bz], [2.3, 0.5, 0.72], woodDark, { res: 0.11 });            // hull
     S.box([bx, 0.62, bz], [1.9, 0.10, 0.6], wood, {});                              // deck
     S.box([bx + 2.35, 0.62, bz], [0.24, 0.14, 0.46], woodDark, {});                 // upturned bow step
     S.box([bx - 2.35, 0.62, bz], [0.24, 0.14, 0.46], woodDark, {});                 // stern step
     // big woven-mat cabin
-    S.box([bx - 0.85, 1.12, bz], [0.78, 0.52, 0.56], matW, { rd: 0.04, res: 0.13 });
-    S.box([bx - 0.85, 1.72, bz], [0.95, 0.09, 0.7], matDark, { res: 0.14 });
+    S.box([bx - 0.85, 1.12, bz], [0.78, 0.52, 0.56], matW, { rd: 0.04, res: 0.10 });
+    S.box([bx - 0.85, 1.72, bz], [0.95, 0.09, 0.7], matDark, { res: 0.11 });
     S.box([bx - 1.18, 1.18, bz + 0.57], [0.2, 0.26, 0.02], lampGold, { ghost: true, res: 0.06 });
-    S.ball([bx - 0.85, 1.9, bz + 0.1], [0.68, 0.13, 0.26], cloth, { res: 0.12 });    // spare sail bundle on roof
+    S.ball([bx - 0.85, 1.9, bz + 0.1], [0.68, 0.13, 0.26], cloth, { res: 0.10 });    // spare sail bundle on roof
     // mast step A-frame + mast lowered toward the bow (angle ~58 deg from vertical)
     S.tube([[bx + 0.18, 0.66, bz + 0.42], [bx + 0.55, 1.5, bz]], 0.045, 0.045, woodDark, {});
     S.tube([[bx + 0.18, 0.66, bz - 0.42], [bx + 0.55, 1.5, bz]], 0.045, 0.045, woodDark, {});
-    S.tube([[bx + 0.55, 0.62, bz], [bx + 3.05, 2.28, bz]], 0.06, 0.045, woodDark, { res: 0.12 });
+    S.tube([[bx + 0.55, 0.62, bz], [bx - 1.95, 2.28, bz]], 0.075, 0.055, wood, { res: 0.09 });
     // sail furled: cloth bundle hugging the lowered mast
-    S.tube([[bx + 0.78, 1.02, bz + 0.12], [bx + 2.9, 2.12, bz + 0.12]], 0.09, 0.07, cloth, { res: 0.1 });
+    S.tube([[bx + 0.32, 1.02, bz + 0.12], [bx - 1.72, 2.12, bz + 0.12]], 0.09, 0.07, cloth, { res: 0.08 });
     // cargo: woven baskets fore, bales aft
     S.ball([bx + 1.5, 0.9, bz + 0.28], [0.34, 0.27, 0.34], matW, { res: 0.11 });
     S.ball([bx + 1.45, 0.9, bz - 0.32], [0.3, 0.24, 0.3], matDark, { res: 0.11 });

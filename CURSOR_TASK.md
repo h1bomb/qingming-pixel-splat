@@ -9,7 +9,7 @@
 
 ## 目标（按优先级）
 1. **WebGL2 渲染器**：把动态版的泼溅绘制从 Canvas 2D 迁到 WebGL2（参考上游 docs/browser-renderer.md 与 webgl.mjs），
-   splat 数量从 ~1.3 万提到 ≥5 万，帧率 ≥50fps（M 芯片 Mac，480×270 逻辑分辨率）。
+   splat 数量从 ~1.3 万提到 ≥5 万，帧率 ≥50fps（M 芯片 Mac，640×360 逻辑分辨率）。
 2. **Selective Ink 描边**：用深度/法线边缘检测给轮廓、折角、材质边界加深色描边（上游 docs/edge-filter.md、docs/art-passes.md）。
 3. **像素稳定性**：镜头慢速环视时像素不闪烁——世界空间抖动 + 稳定采样（上游 docs/stable-dithering.md、docs/art-stability.md）。
 4. **消融对照模式**：同一场景一键切换 Splat / Mesh（three.js 或原生 WebGL）两条渲染路线，共用同一套 Pixel Resolve，
