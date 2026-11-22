@@ -57,7 +57,7 @@ out/                       实测产出（原生 PNG + 动态版三帧截图）
 
 ## 已知短板（别当成已解决）
 
-- 动态版是 Canvas 2D CPU 排序泼溅，不是 WebGL2；1.3 万点是为流畅度做的取舍，上游原生管线可达数万点。
+- 动态版是 Canvas 2D CPU 排序泼溅，不是 WebGL2；3.9 万点是 CPU 排序下的取舍，上游原生管线可达数万点。
 - 动态版没有做深度轮廓描边（Selective Ink）和像素稳定性处理，镜头拖动时会有轻微闪烁——这是 CURSOR_TASK 里的第一优先级。
 - 同场景 Mesh / Ray Marching / Splat 三路线的画质-性能消融对照还没做，结论别写死（见 docs/TECH.md）。
 
