@@ -98,7 +98,7 @@ const C = {
   roof:[51,70,94], roofD:[31,44,61], water:[23,56,77], waterD:[14,34,51], glint:[46,95,116],
   bank:[38,54,84], lamp:[255,184,77], lampR:[217,108,44], warm:[255,233,176],
   moon:[247,243,218], sail:[179,161,132], sailL:[216,201,168], leaf:[46,82,56], leafD:[28,51,40],
-  hull:[70,50,36], white:[232,228,200]
+  hull:[70,50,36], white:[232,228,200], red:[168,54,40], redD:[118,35,27], redL:[199,86,59], mat:[168,138,94], matD:[126,100,64], rope:[188,164,120], clothB:[96,110,128], clothG:[110,104,88]
 };
 
 /* water plane (kind=1: shimmer) */
@@ -107,16 +107,47 @@ for(let x=-12;x<12;x+=0.42) for(let z=-2.3;z<2.3;z+=0.42)
 /* banks */
 box(0,0.02,4.9, 12,0.28,2.1, C.bank, 0.4);
 box(0,0.25,-4.6, 12,0.5,2.4, C.bank, 0.4);
-/* Hong Bridge: stepped arch across Z, tunnel along X */
+/* Hong Bridge: red wooden arch across Z, tunnel along X (per the reference:
+   cinnabar lacquered timber arch ribs, railed deck crowded with onlookers, stone abutments) */
 (function(){
   const R=2.9;
-  for(let i=0;i<=14;i++){ const th=i/14*Math.PI, z=Math.cos(th)*R, y=0.1+Math.sin(th)*R;
-    box(0,y,z, 1.35,0.30,0.34, C.stone, 0.3); }
-  for(const s of [-1,1]){ box(0,0.55,s*3.35, 1.5,0.85,0.75, C.stoneD, 0.36); box(0,1.15,s*2.95, 1.45,0.28,0.5, C.stone, 0.34); }
-  for(let i=0;i<=10;i++){ const th=i/10*Math.PI, z=Math.cos(th)*(R+0.42), y=0.1+Math.sin(th)*(R+0.42);
-    box(0,y,z, 1.3,0.10,0.36, C.deck, 0.3);
-    if(i%2===0) for(const sx of [-1,1]){ box(sx*1.22,y+0.32,z, 0.07,0.32,0.07, C.woodD, 0.16);
-      if(i===2||i===8) ellipsoid(sx*1.22,y+0.78,z, 0.15,0.17,0.15, C.lamp, 26, 1); } }
+  const deckY=z=>{ const th=Math.acos(Math.max(-1,Math.min(1,z/(R+0.42)))); return 0.1+Math.sin(th)*(R+0.42); };
+  // stone abutments only at the two ends
+  for(const sd of [-1,1]){ box(0,0.55,sd*3.35, 1.5,0.85,0.75, C.stoneD, 0.36); box(0,1.15,sd*2.95, 1.45,0.28,0.5, C.stone, 0.34); }
+  // five parallel timber arch ribs under the deck
+  for(const rx of [-1.16,-0.58,0,0.58,1.16])
+    for(let i=0;i<=16;i++){ const th=i/16*Math.PI, z=Math.cos(th)*R, y=0.02+Math.sin(th)*R;
+      box(rx,y,z, 0.10,0.17,0.32, i%2?C.redD:C.red, 0.2); }
+  // two main arch chords at the faces
+  for(const fx of [-1.32,1.32])
+    for(let i=0;i<=16;i++){ const th=i/16*Math.PI, z=Math.cos(th)*(R+0.1), y=0.06+Math.sin(th)*(R+0.1);
+      box(fx,y,z, 0.09,0.24,0.34, C.red, 0.2); }
+  // deck planks + red fascia
+  for(let i=0;i<=12;i++){ const th=i/12*Math.PI, z=Math.cos(th)*(R+0.42), y=0.1+Math.sin(th)*(R+0.42);
+    box(0,y,z, 1.34,0.09,0.34, C.deck, 0.28);
+    for(const fx of [-1.36,1.36]) box(fx,y-0.06,z, 0.05,0.2,0.34, C.red, 0.2); }
+  // railings: posts + two rails following the arc, both faces
+  for(const fx of [-1.3,1.3]){
+    let prev=null;
+    for(let i=0;i<=12;i++){ const th=i/12*Math.PI, z=Math.cos(th)*(R+0.42), y=0.1+Math.sin(th)*(R+0.42)+0.1;
+      box(fx,y+0.26,z, 0.055,0.3,0.055, C.redD, 0.14);
+      if(prev) for(const h of [0.34,0.55]){
+        const mz=(prev.z+z)/2, my=(prev.y+y)/2;
+        box(fx,my+h,mz, 0.045,0.05,Math.abs(z-prev.z)/2+0.05, C.red, 0.14); }
+      prev={y,z};
+      if(i===2||i===10) ellipsoid(fx,y+0.78,z, 0.13,0.16,0.13, C.lampR, 22, 1);
+    }
+  }
+  // crowd on the deck: onlookers leaning on the rails, watching the boat
+  const crowdCols=[C.clothB,C.clothG,C.mat,C.sail,C.roof,C.clothB,C.matD,C.clothG];
+  function figure(x,z,ci,lean){
+    const y=deckY(z)+0.12, c=crowdCols[ci%crowdCols.length];
+    for(let i=0;i<7;i++) push(x+(Math.random()-0.5)*0.05, y+0.12+ (i%3)*0.15, z+(Math.random()-0.5)*0.05, 0,1,0, c, 0.19);
+    push(x+lean*0.1, y+0.62, z, 0,1,0, C.white, 0.15);
+    push(x+lean*0.16, y+0.55, z, lean,0,1, c, 0.13);
+  }
+  const spots=[[-0.95,-2.5],[0.95,-2.2],[-0.95,-1.7],[0.9,-1.2],[-0.9,-0.6],[0.95,-0.1],[-0.95,0.5],[0.9,1.0],[-0.9,1.6],[0.95,2.1],[-0.95,2.6],[0.2,-2.9],[-0.3,2.95],[0.5,0.4]];
+  spots.forEach((sp,i)=>figure(sp[0],sp[1],i, sp[0]>0?1:-1));
 })();
 /* houses */
 function house(x,z,w,h,d){
@@ -148,40 +179,86 @@ function walkerSplats(w){
   return out;
 }
 
-/* ============ 2. boat (dynamic group) ============ */
-const BOAT=[]; // local coords, kind: 0 normal, 3 = sail (y scales), 4 = yard+top (moves down)
+/* ============ 2. boat (dynamic group) ============
+   Per the reference: the mast is not just sail-furled, it is LOWERED (放倒桅杆) —
+   mast + yard + sail rotate forward around the mast step as the bridge nears;
+   the sail furls onto the mast, a spare bundle lies on the cabin roof.
+   kind: 0 static-in-boat, 3 sail (furls), 6 mast group (rotates), 7 furled bundle (swells as sail furls) */
+const BOAT=[];
 function bpush(x,y,z,nx,ny,nz,c,size,em,kind){ const l=Math.hypot(nx,ny,nz)||1;
   BOAT.push({x,y,z,nx:nx/l,ny:ny/l,nz:nz/l,r:c[0],g:c[1],b:c[2],size:size||0.3,em:em||0,kind:kind||0}); }
+function btube(x1,y1,z1,x2,y2,z2,r,c,step,kind){
+  const dx=x2-x1,dy=y2-y1,dz=z2-z1,len=Math.hypot(dx,dy,dz),ux=dx/len,uy=dy/len,uz=dz/len;
+  let px=-uz,pz=ux; const pl=Math.hypot(px,pz)||1; px/=pl; pz/=pl;
+  const qx=uy*pz, qy=uz*px-ux*pz, qz=-uy*px;
+  const rings=Math.max(2,Math.ceil(len/step)), around=Math.max(5,Math.ceil(2*Math.PI*r/step));
+  for(let i=0;i<=rings;i++){ const t=i/rings;
+    for(let j=0;j<around;j++){ const a=j/around*Math.PI*2, ca=Math.cos(a)*r, sa=Math.sin(a)*r;
+      bpush(x1+dx*t+px*ca+qx*sa, y1+dy*t+ (qy*sa), z1+dz*t+pz*ca+qz*sa, px*Math.cos(a)+qx*Math.sin(a), qy*Math.sin(a), pz*Math.cos(a)+qz*Math.sin(a), c, step*1.2, 0, kind); } }
+}
+function bellipsoid(cx,cy,cz,rx,ry,rz,c,n,kind){
+  for(let i=0;i<n;i++){ const y=1-(i/(n-1))*2, rad=Math.sqrt(Math.max(0,1-y*y)), th=2.399963*i;
+    bpush(cx+Math.cos(th)*rad*rx, cy+y*ry, cz+Math.sin(th)*rad*rz, Math.cos(th)/rx, y/ry, Math.sin(th)/rz, c, 0.3, 0, kind); }
+}
+function bplane(cx,cy,cz,hx,hy,c,step,em){
+  const n1=Math.ceil(2*hx/step), n2=Math.ceil(2*hy/step);
+  for(let i=0;i<n1;i++)for(let j=0;j<n2;j++)
+    bpush(cx-hx+(i+0.5)/n1*2*hx, cy-hy+(j+0.5)/n2*2*hy, cz, 0,0,1, c, step*1.25, em, 0);
+}
 (function buildBoat(){
-  // hull: ellipsoid surface, clipped top by sampling only lower 3/4 visually via deck cover
-  for(let i=0;i<560;i++){ const y=1-(i/559)*2, rad=Math.sqrt(Math.max(0,1-y*y)), th=2.399963*i;
-    if(y>0.55) continue;
-    bpush(Math.cos(th)*rad*2.3, 0.28+y*0.5, Math.sin(th)*rad*0.72, Math.cos(th)/2.3,y/0.5,Math.sin(th)/0.72, C.hull, 0.3); }
-  // deck & cabin
   const bx=(cx,cy,cz,hx,hy,hz,c,st)=>{ for(const f of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){
     const t1=f[0]!==0?[0,1,0]:[1,0,0], t2=f[0]!==0?[0,0,1]:(f[1]!==0?[0,0,1]:[0,1,0]);
     const e1=[hx*t1[0],hy*t1[1],hz*t1[2]], e2=[hx*t2[0],hy*t2[1],hz*t2[2]];
     const n1=Math.max(1,Math.ceil(2*Math.hypot(...e1)/st)), n2=Math.max(1,Math.ceil(2*Math.hypot(...e2)/st));
     for(let i=0;i<n1;i++)for(let j=0;j<n2;j++){ const a1=-1+(i+0.5)/n1*2,a2=-1+(j+0.5)/n2*2;
       bpush(cx+f[0]*hx+e1[0]*a1+e2[0]*a2, cy+f[1]*hy+e1[1]*a1+e2[1]*a2, cz+f[2]*hz+e1[2]*a1+e2[2]*a2, f[0],f[1],f[2], c, st*1.15); } } };
+  // hull + plank stripes + stepped upturned bow/stern
+  for(let i=0;i<560;i++){ const y=1-(i/559)*2, rad=Math.sqrt(Math.max(0,1-y*y)), th=2.399963*i;
+    if(y>0.55) continue;
+    bpush(Math.cos(th)*rad*2.3, 0.28+y*0.5, Math.sin(th)*rad*0.72, Math.cos(th)/2.3,y/0.5,Math.sin(th)/0.72, C.hull, 0.3); }
+  for(const sz of [-1,1]){ bx(0,0.44,sz*0.71, 1.8,0.045,0.02, C.woodD, 0.3); bx(0,0.2,sz*0.68, 1.7,0.045,0.02, C.woodD, 0.3); }
+  bx(2.28,0.6,0, 0.26,0.15,0.48, C.hull, 0.26); bx(2.52,0.78,0, 0.15,0.12,0.36, C.hull, 0.24);
+  bx(-2.28,0.6,0, 0.26,0.15,0.48, C.hull, 0.26); bx(-2.52,0.8,0, 0.15,0.12,0.36, C.hull, 0.24);
   bx(0,0.62,0, 1.9,0.10,0.6, C.deck, 0.3);
-  bx(-0.9,1.05,0, 0.55,0.42,0.5, C.wood, 0.3);
-  bx(-0.9,1.55,0, 0.7,0.09,0.62, C.roof, 0.3);
-  // mast (fixed)
-  for(let i=0;i<26;i++){ const a=i/26*Math.PI*2;
-    for(let j=0;j<9;j++) bpush(0.55+Math.cos(a)*0.055, 0.6+j*0.28, Math.sin(a)*0.055, Math.cos(a),0,Math.sin(a), C.woodD, 0.2); }
-  // sail cloth: local y in [0,1] over height 1.9, base at y=1.05 (kind=3)
+  // big woven-mat cabin: mat siding, dark frame, lattice window + door on the camera side, mat roof
+  bx(-0.85,1.12,0, 0.78,0.52,0.56, C.mat, 0.26);
+  bx(-0.85,1.68,0, 0.95,0.09,0.7, C.matD, 0.3);
+  btube(-1.72,1.8,0, 0.02,1.8,0, 0.05, C.woodD, 0.2, 0);
+  bplane(-1.18,1.18,0.575, 0.2,0.26, C.warm, 0.1, 0);
+  bplane(-0.42,1.16,0.575, 0.15,0.28, C.matD, 0.1, 0);
+  bplane(-1.18,1.18,-0.575, 0.2,0.26, C.matD, 0.1, 0);
+  // spare furled sail bundle on the cabin roof
+  bellipsoid(-0.85,1.88,0.1, 0.68,0.13,0.26, C.sail, 70, 0);
+  // mast step A-frame (static) + mast & yard (kind=6, rotate when lowering)
+  btube(0.18,0.66,0.42, 0.55,1.5,0, 0.045, C.woodD, 0.2, 0);
+  btube(0.18,0.66,-0.42, 0.55,1.5,0, 0.045, C.woodD, 0.2, 0);
+  btube(0.55,0.6,0, 0.55,3.55,0, 0.06, C.woodD, 0.2, 6);
+  btube(-0.5,3.3,0.05, 1.6,3.3,0.05, 0.04, C.woodD, 0.18, 6);
+  // sail (kind=3, furls onto the mast) + furled bundle hugging the mast (kind=7)
   for(let i=0;i<21;i++) for(let j=0;j<23;j++){
-    const lx=-0.42+i/20*1.9, ly=j/22;
-    bpush(0.55-0.95+ (i/20)*1.9, 1.05+ly*1.9, 0.07, 0,0,1, (j%5===4?C.sail:C.sailL), 0.30, 0, 3);
+    const ly=j/22;
+    bpush(0.55-0.95+(i/20)*1.9, 1.28+ly*1.92, 0.07, 0,0,1, (j%5===4?C.sail:C.sailL), 0.3, 0, 3);
   }
-  // yard (top bar, kind=4) + bow/stern lanterns
-  for(let i=0;i<14;i++) bpush(-0.42+i/13*1.95, 3.02, 0.07, 0,1,0, C.woodD, 0.18, 0, 4);
-  for(let i=0;i<20;i++){ const a=i*2.4; bpush(2.15+Math.cos(a)*0.12,0.9+Math.sin(a)*0.13,Math.sin(a*1.3)*0.1, 0,1,0, C.lampR, 0.17, 1); }
-  for(let i=0;i<20;i++){ const a=i*2.4; bpush(-2.1+Math.cos(a)*0.12,1.0+Math.sin(a)*0.13,Math.sin(a*1.3)*0.1, 0,1,0, C.lamp, 0.17, 1); }
-  // boatman
-  for(let i=0;i<12;i++){ const a=i*2.4; bpush(-1.5+Math.cos(a)*0.09,1.05+(i%4)*0.16,0.2+Math.sin(a)*0.09, 0,1,0, C.roof, 0.15); }
-  bpush(-1.5,1.78,0.2, 0,1,0, C.white, 0.16);
+  btube(0.63,1.3,0.12, 0.63,3.15,0.12, 0.085, C.sail, 0.16, 7);
+  // cargo: woven baskets fore, bales aft
+  bellipsoid(1.5,0.9,0.28, 0.34,0.27,0.34, C.mat, 90, 0);
+  bellipsoid(1.45,0.9,-0.32, 0.3,0.24,0.3, C.matD, 80, 0);
+  bellipsoid(1.55,1.32,0.02, 0.26,0.2,0.26, C.mat, 70, 0);
+  bx(-1.98,0.9,0.27, 0.28,0.17,0.26, C.rope, 0.2);
+  bx(-1.98,0.9,-0.3, 0.28,0.17,0.26, C.mat, 0.2);
+  // bow & stern lanterns
+  for(let i=0;i<20;i++){ const a=i*2.4; bpush(2.62+Math.cos(a)*0.11,0.98+Math.sin(a)*0.12,Math.sin(a*1.3)*0.1, 0,1,0, C.lampR, 0.17, 1); }
+  for(let i=0;i<20;i++){ const a=i*2.4; bpush(-2.6+Math.cos(a)*0.11,1.05+Math.sin(a)*0.12,Math.sin(a*1.3)*0.1, 0,1,0, C.lamp, 0.17, 1); }
+  // boatmen: bow puller leaning into the rope, roof hand at the mast, stern poler
+  btube(1.92,0.78,0.18, 2.18,1.38,0.18, 0.1, C.clothB, 0.14, 0);
+  bpush(2.24,1.56,0.18, 0,1,0, C.white, 0.16);
+  btube(2.3,1.35,0.18, 3.05,1.78,0.18, 0.022, C.rope, 0.12, 0);
+  btube(-0.35,1.98,0, -0.02,1.9,0, 0.09, C.clothG, 0.13, 0);
+  bpush(0.04,2.04,0, 0,1,0, C.white, 0.15);
+  btube(-0.08,1.92,0, 0.34,1.72,0, 0.035, C.clothG, 0.1, 0);
+  btube(-2.12,0.78,-0.25, -2.06,1.5,-0.25, 0.1, C.clothB, 0.14, 0);
+  bpush(-2.04,1.66,-0.25, 0,1,0, C.white, 0.16);
+  btube(-2.2,1.25,-0.3, -2.88,-0.05,-0.5, 0.03, C.woodD, 0.16, 0);
 })();
 
 /* fog particles */
@@ -241,10 +318,17 @@ function frame(dt){
   for(const w of WALKERS){ w.u+= (playing? dt*w.sp*w.dir : 0); if(w.u>0.92){w.u=0.92;w.dir=-1} if(w.u<0.08){w.u=0.08;w.dir=1}
     for(const s of walkerSplats(w)) proj(s,0,0,0); }
   for(const s of BOAT){
-    let lx=s.x*1.3, ly=s.y*1.22, lz=s.z*1.25, extraY=0;
-    if(s.kind===3){ const base=1.05*1.22; ly=base + (s.y*1.22-base)*sf; }
-    if(s.kind===4){ ly=s.y*1.22 - (1-sf)*1.95; }
-    proj({x:lx,y:ly,z:lz,nx:s.nx,ny:s.ny,nz:s.nz,r:s.r,g:s.g,b:s.b,size:s.size*1.3,em:s.em,kind:0}, boatX, bob, 0);
+    let lx=s.x*1.3, ly=s.y*1.22, lz=s.z*1.25, sizeF=1;
+    if(s.kind===3||s.kind===6||s.kind===7){
+      let px=s.x, py=s.y, pz=s.z;
+      if(s.kind===3){ const base=1.28; py=base+(py-base)*Math.max(0.05,sf); }
+      if(s.kind===7) sizeF=0.35+0.9*(1-sf);
+      const A=(1-sf)*1.02, cA=Math.cos(A), sA=Math.sin(A);
+      const dx=px-0.55, dy=py-0.62;
+      px=0.55+dx*cA+dy*sA; py=0.62-dx*sA+dy*cA;
+      lx=px*1.3; ly=py*1.22; lz=pz*1.25;
+    }
+    proj({x:lx,y:ly,z:lz,nx:s.nx,ny:s.ny,nz:s.nz,r:s.r,g:s.g,b:s.b,size:s.size*1.3*sizeF,em:s.em,kind:0}, boatX, bob, 0);
   }
   all.sort((a,b)=>b.z-a.z);
   /* sky */
@@ -300,10 +384,10 @@ function frame(dt){
   }
   /* caption / hud */
   const cap=document.getElementById('caption');
-  cap.textContent = boatX<-3.4 ? '扬帆顺流 · 灯火两岸' : boatX<-1.2 ? '桥洞在前 —— 收帆！' :
-    Math.abs(boatX)<=1.7 ? '桅下桥洞 · 帆已收拢，船身压低通过' : boatX<3.4 ? '过桥 —— 重新扬帆' : '顺流而下 · 月下汴河';
+  cap.textContent = boatX<-3.4 ? '扬帆顺流 · 灯火两岸' : boatX<-1.2 ? '桥洞在前 —— 放桅收帆！' :
+    Math.abs(boatX)<=1.7 ? '桅杆放倒 · 帆卷在桅上，贴着桥洞过' : boatX<3.4 ? '过桥 —— 立桅扬帆' : '顺流而下 · 月下汴河';
   document.getElementById('hud').innerHTML =
-    'splats ≈ '+(S.length+BOAT.length)+'<br>逻辑分辨率 480×270<br>船位 x='+boatX.toFixed(1)+' · 帆 '+(sf*100|0)+'%';
+    'splats ≈ '+(S.length+BOAT.length)+'<br>逻辑分辨率 480×270<br>船位 x='+boatX.toFixed(1)+' · 桅 '+(sf>0.9?'直立':sf<0.3?'已放倒':'放倒中 '+((1-sf)*100|0)+'%');
   document.getElementById('clock').textContent='t='+t.toFixed(1)+'s / '+LOOP+'s';
   if(!scrubbing) document.getElementById('scrub').value=(t/LOOP*1000)|0;
 }

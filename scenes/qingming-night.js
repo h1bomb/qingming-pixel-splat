@@ -21,7 +21,9 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
       0xe8e4c8, 0xf7f3da,                               // 18-19 moon
       0x8fa3b8,                                         // 20 fog
       0x7a6a52, 0xb3a184, 0xd8c9a8,                     // 21-23 sail cloth
-      0x1c3328, 0x2e5238, 0x477052                      // 24-26 foliage
+      0x1c3328, 0x2e5238, 0x477052,                     // 24-26 foliage
+      0x78241c, 0xa83628, 0xc6543a,                     // 27-29 cinnabar red wood
+      0xa88a5e, 0x806644                                // 30-31 woven mat
     ];
     const B = makeBuilder(seed, PAL);
     const S = K.sculpt(makeSculpt(B));
@@ -43,34 +45,49 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     const lampGold = { r: [15, 16, 17], em: true };
     const moonMat = { r: [18, 19, 19], em: true };
     const fogMat = { r: [20], a: 0.10, ghost: true };
+    const redWood = { r: [27, 28, 28, 29] };
+    const redDark = { r: [27, 27, 28] };
+    const matW = { r: [30, 30, 31] };
+    const matDark = { r: [31, 31, 30] };
 
     // ---- water & banks (river flows along X, width along Z) ----
     S.box([0, -0.12, 0], [12, 0.12, 2.3], water, { res: 0.22 });
     S.box([0, 0.02, 4.9], [12, 0.28, 2.1], bank, { res: 0.24 });   // front bank (low)
     S.box([0, 0.25, -4.6], [12, 0.5, 2.4], bank, { res: 0.24 });  // back bank
 
-    // ---- Hong Bridge: stepped arch spanning Z, tunnel axis along X ----
+    // ---- Hong Bridge: cinnabar timber arch (per the reference), stone abutments, crowded railed deck ----
     const R = 2.9, CY = 0.1;
-    for (let i = 0; i <= 14; i++) {
-      const th = (i / 14) * Math.PI;              // 0..PI over the arch
-      const z = Math.cos(th) * R, y = CY + Math.sin(th) * R;
-      S.box([0, y, z], [1.35, 0.30, 0.34], stone, { rd: 0.06, res: 0.15 });
+    const deckY = z => { const th = Math.acos(Math.max(-1, Math.min(1, z / (R + 0.42)))); return CY + Math.sin(th) * (R + 0.42); };
+    for (const rx of [-1.16, -0.58, 0, 0.58, 1.16])
+      for (let i = 0; i <= 16; i++) {
+        const th = (i / 16) * Math.PI, z = Math.cos(th) * R, y = CY - 0.08 + Math.sin(th) * R;
+        S.box([rx, y, z], [0.10, 0.17, 0.32], i % 2 ? redDark : redWood, { rd: 0.03, res: 0.15 });
+      }
+    for (const fx of [-1.32, 1.32])
+      for (let i = 0; i <= 16; i++) {
+        const th = (i / 16) * Math.PI, z = Math.cos(th) * (R + 0.1), y = CY + Math.sin(th) * (R + 0.1);
+        S.box([fx, y, z], [0.09, 0.24, 0.34], redWood, { rd: 0.03, res: 0.15 });
+      }
+    for (const sd of [-1, 1]) {
+      S.box([0, 0.55, sd * 3.35], [1.5, 0.85, 0.75], stoneDark, { rd: 0.05 });
+      S.box([0, 1.15, sd * 2.95], [1.45, 0.28, 0.5], stone, { rd: 0.05 });
     }
-    // abutments
-    for (const s of [-1, 1]) {
-      S.box([0, 0.55, s * 3.35], [1.5, 0.85, 0.75], stoneDark, { rd: 0.05 });
-      S.box([0, 1.15, s * 2.95], [1.45, 0.28, 0.5], stone, { rd: 0.05 });
-    }
-    // deck planks following the arc + railings with lanterns
-    for (let i = 0; i <= 10; i++) {
-      const th = (i / 10) * Math.PI;
+    for (let i = 0; i <= 12; i++) {
+      const th = (i / 12) * Math.PI;
       const z = Math.cos(th) * (R + 0.42), y = CY + Math.sin(th) * (R + 0.42);
-      S.box([0, y, z], [1.3, 0.10, 0.36], wood, { res: 0.14 });
-      if (i % 2 === 0) for (const sx of [-1, 1]) {
-        S.box([sx * 1.22, y + 0.32, z], [0.07, 0.32, 0.07], woodDark, {});
-        if (i === 2 || i === 8) S.ball([sx * 1.22, y + 0.78, z], 0.14, lampGold, { ghost: true, res: 0.07 });
+      S.box([0, y, z], [1.34, 0.09, 0.34], wood, { res: 0.14 });
+      for (const fx of [-1.3, 1.3]) {
+        S.box([fx, y + 0.36, z], [0.055, 0.3, 0.055], redDark, {});
+        if (i === 2 || i === 10) S.ball([fx, y + 0.85, z], 0.13, lampRed, { ghost: true, res: 0.07 });
       }
     }
+    // crowd leaning on the rails, watching the boat
+    const crowdCols = [{ r: [8, 9, 10] }, { r: [21, 22, 23] }, matW, { r: [24, 25, 26] }];
+    [[-0.95, -2.5], [0.95, -2.2], [-0.95, -1.7], [0.9, -1.2], [-0.9, -0.6], [0.95, -0.1], [-0.95, 0.5], [0.9, 1.0], [-0.9, 1.6], [0.95, 2.1], [-0.95, 2.6], [0.2, -2.9]].forEach(([fx, fz], i) => {
+      const fy = deckY(fz) + 0.12, cm = crowdCols[i % crowdCols.length];
+      S.box([fx, fy + 0.28, fz], [0.11, 0.28, 0.09], cm, { res: 0.09 });
+      S.ball([fx + (fx > 0 ? 0.06 : -0.06), fy + 0.68, fz], 0.11, { r: [21, 22, 23] }, { res: 0.06 });
+    });
 
     // ---- houses on the back bank (stepped roofs, lit windows) ----
     function house(x, z, w, h, d) {
@@ -99,23 +116,40 @@ module.exports = ({ KIT: K, makeBuilder, makeSculpt }) => ({
     }
     tree(-9.8, -3.6, 1.15); tree(3.4, -3.9, 0.95); tree(-6.2, 4.6, 1.0); tree(10.2, 4.4, 1.2);
 
-    // ---- the boat, under the arch, sail half-lowered ----
+    // ---- the boat, approaching the arch: mast LOWERED diagonally, sail furled on it (per the reference) ----
     const bx = 4.6, bz = 0;
     S.ball([bx, 0.28, bz], [2.3, 0.5, 0.72], woodDark, { res: 0.14 });            // hull
     S.box([bx, 0.62, bz], [1.9, 0.10, 0.6], wood, {});                              // deck
-    S.box([bx - 0.9, 1.05, bz], [0.55, 0.42, 0.5], wood, { rd: 0.05 });             // cabin
-    S.box([bx - 0.9, 1.55, bz], [0.7, 0.09, 0.62], roof, {});                       // cabin roof
-    S.tube([[bx + 0.55, 0.6, bz], [bx + 0.55, 3.1, bz]], 0.055, 0.045, woodDark, {}); // mast (top clears arch ~3.0 barely)
-    // sail: lowered — cloth bunched low, top yard dropped to mid-mast
-    S.box([bx + 0.55, 1.95, bz + 0.06], [0.95, 0.42, 0.045], cloth, { res: 0.10 });
-    S.box([bx + 0.55, 1.42, bz + 0.06], [0.85, 0.20, 0.06], cloth, { res: 0.10 });
-    S.tube([[bx - 0.45, 2.42, bz + 0.06], [bx + 1.55, 2.42, bz + 0.06]], 0.035, 0.035, woodDark, {}); // dropped yard
-    S.ball([bx + 2.15, 0.85, bz], 0.13, lampRed, { ghost: true, res: 0.07 });       // bow lantern
-    S.ball([bx - 2.1, 0.95, bz], 0.13, lampGold, { ghost: true, res: 0.07 });       // stern lantern
-    // boatman with a pole, aft
-    S.tube([[bx - 1.55, 0.7, bz + 0.2], [bx - 1.5, 1.55, bz + 0.2]], 0.09, 0.07, { r: [8, 9, 10] }, {});
-    S.ball([bx - 1.5, 1.72, bz + 0.2], 0.13, { r: [21, 22, 23] }, { res: 0.07 });
-    S.tube([[bx - 1.35, 1.2, bz + 0.2], [bx - 0.7, 0.25, bz + 0.55]], 0.03, 0.03, woodDark, {});
+    S.box([bx + 2.35, 0.62, bz], [0.24, 0.14, 0.46], woodDark, {});                 // upturned bow step
+    S.box([bx - 2.35, 0.62, bz], [0.24, 0.14, 0.46], woodDark, {});                 // stern step
+    // big woven-mat cabin
+    S.box([bx - 0.85, 1.12, bz], [0.78, 0.52, 0.56], matW, { rd: 0.04, res: 0.13 });
+    S.box([bx - 0.85, 1.72, bz], [0.95, 0.09, 0.7], matDark, { res: 0.14 });
+    S.box([bx - 1.18, 1.18, bz + 0.57], [0.2, 0.26, 0.02], lampGold, { ghost: true, res: 0.06 });
+    S.ball([bx - 0.85, 1.9, bz + 0.1], [0.68, 0.13, 0.26], cloth, { res: 0.12 });    // spare sail bundle on roof
+    // mast step A-frame + mast lowered toward the bow (angle ~58 deg from vertical)
+    S.tube([[bx + 0.18, 0.66, bz + 0.42], [bx + 0.55, 1.5, bz]], 0.045, 0.045, woodDark, {});
+    S.tube([[bx + 0.18, 0.66, bz - 0.42], [bx + 0.55, 1.5, bz]], 0.045, 0.045, woodDark, {});
+    S.tube([[bx + 0.55, 0.62, bz], [bx + 3.05, 2.28, bz]], 0.06, 0.045, woodDark, { res: 0.12 });
+    // sail furled: cloth bundle hugging the lowered mast
+    S.tube([[bx + 0.78, 1.02, bz + 0.12], [bx + 2.9, 2.12, bz + 0.12]], 0.09, 0.07, cloth, { res: 0.1 });
+    // cargo: woven baskets fore, bales aft
+    S.ball([bx + 1.5, 0.9, bz + 0.28], [0.34, 0.27, 0.34], matW, { res: 0.11 });
+    S.ball([bx + 1.45, 0.9, bz - 0.32], [0.3, 0.24, 0.3], matDark, { res: 0.11 });
+    S.ball([bx + 1.55, 1.3, bz], [0.26, 0.2, 0.26], matW, { res: 0.11 });
+    S.box([bx - 1.98, 0.9, bz + 0.27], [0.28, 0.17, 0.26], matDark, {});
+    S.box([bx - 1.98, 0.9, bz - 0.3], [0.28, 0.17, 0.26], matW, {});
+    S.ball([bx + 2.55, 0.95, bz], 0.13, lampRed, { ghost: true, res: 0.07 });       // bow lantern
+    S.ball([bx - 2.55, 1.0, bz], 0.13, lampGold, { ghost: true, res: 0.07 });       // stern lantern
+    // boatmen: bow puller with rope, roof hand at the mast foot, stern poler
+    S.tube([[bx + 1.92, 0.78, bz + 0.18], [bx + 2.18, 1.38, bz + 0.18]], 0.1, 0.08, { r: [8, 9, 10] }, { res: 0.08 });
+    S.ball([bx + 2.24, 1.56, bz + 0.18], 0.12, { r: [21, 22, 23] }, { res: 0.06 });
+    S.tube([[bx + 2.3, 1.35, bz + 0.18], [bx + 3.05, 1.78, bz + 0.18]], 0.022, 0.022, matW, { res: 0.08 });
+    S.tube([[bx - 0.35, 1.98, bz], [bx - 0.02, 1.9, bz]], 0.09, 0.07, { r: [24, 25, 26] }, { res: 0.08 });
+    S.ball([bx + 0.04, 2.04, bz], 0.11, { r: [21, 22, 23] }, { res: 0.06 });
+    S.tube([[bx - 2.12, 0.78, bz - 0.25], [bx - 2.06, 1.5, bz - 0.25]], 0.1, 0.08, { r: [8, 9, 10] }, { res: 0.08 });
+    S.ball([bx - 2.04, 1.66, bz - 0.25], 0.12, { r: [21, 22, 23] }, { res: 0.06 });
+    S.tube([[bx - 2.2, 1.25, bz - 0.3], [bx - 2.88, -0.05, bz - 0.5]], 0.03, 0.03, woodDark, {});
 
     // ---- moon & fog ----
     S.ball([-7.8, 7.6, -7.5], [1.05, 1.05, 0.3], moonMat, { ghost: true, res: 0.2 });
