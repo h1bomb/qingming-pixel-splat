@@ -1,0 +1,11 @@
+---
+description: 虹桥夜渡项目规则：管线、验收、红线
+alwaysApply: true
+---
+# 项目规则
+- 先读 README.md、docs/TECH.md、CURSOR_TASK.md 再改代码。
+- 动态版 web/index.html 必须保持单文件、零构建步骤、浏览器直接打开可运行。
+- 上游 Ink Studio 的 API 以本地克隆仓库的 src/sculpt.js 与 examples/ 为准，不要凭博客猜 API。
+- 每次改动后要验证：页面无 console error；原生场景改动要用上游 CLI 重新渲染对比。
+- 不引入受版权保护的素材；所有形状程序化生成。
+- 文案红线：没有消融数据前，不许写「Splat 优于 Mesh」类结论。
